@@ -4,7 +4,7 @@
 スタートを おすと カードが 上から下へ 流れて ひとりでに 止まります。
 出たカードの「やること」を みんなで やってみましょう。
 
-**▶ つかう → https://eduwithdai.github.io/slot-challenge/**
+**▶ つかう → https://eduwithdai.github.io/roadsign-roulette/**
 
 タブレットのブラウザで ひらくだけ。インストールは いりません。
 ファイルを ダウンロードして `index.html` を ダブルクリックしても 同じように動きます。
