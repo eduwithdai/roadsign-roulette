@@ -1198,18 +1198,21 @@
       void burst.offsetWidth;
       burst.classList.add("show");
       confetti();
-      playSfx(STOP_SOUND);
-
       resultName.textContent = s.name;
       resultAction.textContent = s.action || "";
       resultPlate.classList.add("show");
 
-      /* そのカードの音（踏切など）を先に鳴らし、鳴りおわってから読み上げる。
-         同時に鳴らすと どちらも聞き取れないため。 */
+      /* 音は かさならないように ひとつずつ。
+           止まった音 → 読み上げ → そのカードの音（踏切など）
+         いちどに鳴らすと どれも聞き取れないため。
+         つぎの回転が始まっていたら 途中でやめる。 */
       var spun = spinCount;
-      playCardSound(s, function(){
-        if(spun !== spinCount) return;      // つぎの回転が始まっていたら 読み上げない
-        say(s);
+      playSfxThen(STOP_SOUND, function(){
+        if(spun !== spinCount) return;
+        say(s, function(){
+          if(spun !== spinCount) return;
+          playCardSound(s);
+        });
       });
     }finally{
       spinning = false;
@@ -1253,6 +1256,10 @@
 
   /* ================= 音 ================= */
   var audio = null, clip = null, cardSnd = null, sfx = {};
+  /* 音を 順番につなぐ（止まった音 → 読み上げ → カードの音）ための番号。
+     shutUp() で 増やす。途中で止めたときに つぎの音が鳴りださないように、
+     待っている処理は 自分がとった番号と見くらべる。 */
+  var soundSeq = 0;
   function initAudio(){
     if(!audio){
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -1279,6 +1286,29 @@
       if(p && p.catch) p.catch(function(){ /* 自動再生が止められた場合は鳴らさない */ });
     }catch(e){ /* 音が使えない環境 */ }
   }
+  /* 効果音を鳴らして、鳴りおわったら done を呼ぶ。
+     鳴らせないとき（音を切っている・再生に失敗した）は すぐ done。 */
+  function playSfxThen(src, done){
+    var seq = soundSeq;
+    var fired = false;
+    var fin = function(){
+      if(fired) return;
+      fired = true;
+      if(seq !== soundSeq) return;        // 途中で止められていたら つぎへ進まない
+      done();
+    };
+    if(!soundOn){ fin(); return; }
+    try{
+      var a = loadSfx(src);
+      var off = function(){ a.removeEventListener("ended", off); fin(); };
+      a.addEventListener("ended", off);
+      setTimeout(off, 8000);              // 念のための打ち切り
+      a.currentTime = 0;
+      var p = a.play();
+      if(p && p.catch) p.catch(off);
+    }catch(e){ fin(); }
+  }
+
   function beep(freq, dur, type, delay, vol){
     if(!soundOn || !audio) return;
     var t = audio.currentTime + (delay || 0);
@@ -1323,17 +1353,24 @@
   /* そのカードに音が決まっていれば鳴らし、鳴りおわったら done を呼ぶ。
      音が無いカードは すぐ done。 */
   function playCardSound(item, done){
+    done = done || function(){};
     var src = item && item.sound;
+    var seq = soundSeq;
     if(!soundOn || !src){ done(); return; }
     if(src === "crossing"){
       var sec = crossingBell();
-      setTimeout(done, Math.round(sec * 1000) + 150);
+      setTimeout(function(){ if(seq === soundSeq) done(); }, Math.round(sec * 1000) + 150);
       return;
     }
     try{
       var a = new Audio(src);
       var fired = false;
-      var fin = function(){ if(fired) return; fired = true; done(); };
+      var fin = function(){
+        if(fired) return;
+        fired = true;
+        if(seq !== soundSeq) return;
+        done();
+      };
       a.addEventListener("ended", fin);
       a.addEventListener("error", fin);        // ファイルが無ければ そのまま次へ
       setTimeout(fin, 8000);                   // 念のための打ち切り
@@ -1368,36 +1405,60 @@
 
   /* 読み上げ。<声のフォルダ>/<名前>.mp3 があればそれを鳴らし、
      無ければブラウザの音声合成にまかせる。 */
-  function say(item){
-    if(!soundOn) return;
+  /* 読み上げる。読みおわったら done を呼ぶ（つぎの音に つなぐため）。 */
+  function say(item, done){
+    done = done || function(){};
+    if(!soundOn){ done(); return; }
     shutUp();
+    var seq = soundSeq;                   // shutUp のあとの番号をとる
     var text = (item.yomi || item.name) + "。" + (item.action || "");
     var src = voiceFolder() + encodeURIComponent(item.name) + ".mp3";
+    var ended = false;
+    var finish = function(){
+      if(ended) return;
+      ended = true;
+      if(seq !== soundSeq) return;        // 途中で止められていたら つぎへ進まない
+      done();
+    };
     /* 録音が無いときは error と play() の失敗が両方おきる。
        どちらか先に来たほうだけで 読み上げる（二重に読まないように）。 */
     var fellBack = false;
     var fallback = function(){
       if(fellBack) return;
       fellBack = true;
-      speak(text);
+      speak(text, finish);
     };
     clip = new Audio(src);
     clip.addEventListener("error", fallback);
+    clip.addEventListener("ended", finish);   // 録音があったとき
     var p = clip.play();
     if(p && p.catch) p.catch(fallback);
   }
-  function speak(text){
-    if(!soundOn || !window.speechSynthesis) return;
+  function speak(text, done){
+    done = done || function(){};
+    if(!soundOn || !window.speechSynthesis){ done(); return; }
     try{
       speechSynthesis.cancel();
+      var seq = soundSeq;
       var u = new SpeechSynthesisUtterance(text);
       var v = bestVoice();
       if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = "ja-JP"; }
       u.rate = .95; u.pitch = 1.05;
+      var ended = false;
+      var fin = function(){
+        if(ended) return;
+        ended = true;
+        if(seq !== soundSeq) return;
+        done();
+      };
+      u.onend = fin;
+      u.onerror = fin;
+      setTimeout(fin, 20000);             // 読み上げが終わらないときの打ち切り
       speechSynthesis.speak(u);
-    }catch(e){ /* 読み上げ非対応 */ }
+    }catch(e){ done(); }
   }
   function shutUp(){
+    soundSeq++;                           // 待っている音を これ以上 鳴らさない
     try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
     if(clip){ try{ clip.pause(); }catch(e){} clip = null; }
     if(cardSnd){ try{ cardSnd.pause(); }catch(e){} cardSnd = null; }
