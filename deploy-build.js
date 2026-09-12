@@ -25,9 +25,9 @@ const pick = (dir, needle) => {
 /* 実際に sound/ に入っているファイルだけを 半角名に置きかえる。
    sets.js のコメントに出てくる「sound/なにか.mp3」のような 見本は そのまま。 */
 const soundMap = {};                      // 決定ボタンを押す42.mp3 → start.mp3
-[["ボタン", "start.mp3"],                  // 決定ボタンを押す42
- ["ドラム", "stop.mp3"],                   // スチールドラム02
- ["踏切",   "crossing.mp3"]                // 踏切
+[["スタート", "start.mp3"],
+ ["とまった", "stop.mp3"],
+ ["踏切",     "crossing.mp3"]
 ].forEach(([needle, en]) => {
   const rel = pick("sound", needle);       // "sound/○○.mp3"
   cp(rel, "sound/" + en);
