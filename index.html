@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SLOT CHALLENGE</title>
+<link rel="icon" href="assets/app-icon.png">
+<link rel="apple-touch-icon" href="assets/app-icon.png">
+<style>
+  :root{
+    --navy:#041a52;
+    --blue:#197eef;
+    --red:#e21010;
+    --yellow:#fcd402;
+    --sky:#0da5fe;
+    --paper:#fdfdfd;
+    --cloud:#eef4ff;      /* 画面の下地（青みのある白） */
+    --ink2:#3b4a6b;       /* 説明文の色 */
+    --line:#bcccea;       /* 枠線のうすい色 */
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;
+    overflow:hidden;
+    background:var(--sky) url("assets/背景.png") center center / cover no-repeat fixed;
+    color:var(--navy);
+    font-family:"Yu Gothic Rounded","Hiragino Maru Gothic ProN","M PLUS Rounded 1c","Meiryo",sans-serif;
+    user-select:none;
+  }
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;}
+  .screen[hidden]{display:none;}
+
+  /* ============ あそぶ画面 ============ */
+  #playScreen{padding:1vmin;}
+
+  /* 先生用の小さなボタン（子どもが誤って押しにくい隅） */
+  .corner{position:absolute;top:1.2vmin;right:1.2vmin;display:flex;gap:1.2vmin;z-index:30;}
+  .iconBtn{
+    width:clamp(38px,5.6vmin,62px);height:clamp(38px,5.6vmin,62px);
+    border-radius:50%;border:.42vmin solid var(--navy);
+    background:var(--blue);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;padding:0;opacity:.62;
+    box-shadow:0 .5vmin 0 var(--navy);
+    transition:opacity .2s ease, transform .08s ease;
+  }
+  .iconBtn:hover{opacity:1;}
+  .iconBtn:active{transform:translateY(.5vmin);box-shadow:none;}
+  .iconBtn svg{width:58%;height:58%;fill:var(--yellow);}
+  .iconBtn.danger{background:var(--red);}   /* はじめから＝やり直す操作なので赤 */
+
+  /* のこり枚数（「もう出さない」のときだけ出る先生用の目印） */
+  .remainBadge{
+    position:absolute;top:1.2vmin;left:1.2vmin;z-index:30;
+    background:var(--navy);color:var(--yellow);
+    border-radius:99px;padding:.35em 1em;
+    font-size:clamp(12px,2vmin,20px);font-weight:800;
+    box-shadow:0 .4vmin 0 rgba(0,0,0,.25);
+    opacity:.9;
+  }
+  .remainBadge[hidden]{display:none;}
+  .remainBadge.done{background:var(--red);color:#fff;}
+
+  .titleBar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  }
+  .titleBar img{
+    display:block;height:auto;width:auto;
+    filter:drop-shadow(0 .5vmin .8vmin rgba(4,26,82,.32));
+  }
+  /* 看板の文字は絵に焼きこまず、上に重ねて描く（設定から書きかえられる） */
+  .titleWrap{position:relative;display:inline-block;line-height:0;}
+  /* 位置は title-blank.png(608x307) の赤い面に合わせた実測値 */
+  .titleWrap .overlayText{
+    position:absolute;
+    left:13.158%;top:18.241%;width:73.849%;height:64.821%;
+    pointer-events:none;overflow:visible;
+  }
+  /* スタートボタンの文字も同じしくみ。btn-start-blank.png(333x384) の黄色い面 */
+  .bigBtn{position:relative;}
+  .bigBtn .overlayText{
+    position:absolute;
+    left:18.619%;top:26.042%;width:63.063%;height:22.656%;
+    pointer-events:none;overflow:visible;
+  }
+  /* 題名の絵が無いセットは、赤いプレートに名前を出す */
+  .titlePlate{
+    display:flex;align-items:center;justify-content:center;
+    border-style:solid;border-width:clamp(14px,2.8vmin,34px);
+    border-image:url("assets/plate.png") 40 fill stretch;
+    padding:0 1.2vmin;
+    font-size:clamp(17px,4vmin,42px);font-weight:900;
+    color:var(--yellow);text-shadow:0 .3vmin 0 var(--navy);
+    white-space:nowrap;
+    filter:drop-shadow(0 .5vmin .8vmin rgba(4,26,82,.3));
+  }
+  .side{
+    flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    z-index:1;
+  }
+
+  .playArea{
+    position:relative;flex:1 1 auto;min-height:0;
+    display:flex;align-items:center;justify-content:center;gap:3vmin;
+  }
+
+  /* 抽選機：画面いっぱい（大きさは JS が実測して px で決める） */
+  .machineBox{position:relative;z-index:1;flex:0 0 auto;line-height:0;}
+  .machineImg{
+    display:block;width:100%;height:100%;
+    filter:drop-shadow(0 1.2vmin 1.4vmin rgba(4,26,82,.3));
+  }
+
+  /* リール窓（machine.png 608x641 のうち x195 y271 346x344） */
+  .reel{
+    position:absolute;
+    left:21.546%;top:23.713%;
+    width:56.908%;height:53.666%;
+    overflow:hidden;z-index:2;
+    background:var(--paper);
+  }
+  .reel::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:4;
+    background:linear-gradient(to bottom,
+      rgba(4,26,82,.18) 0%, rgba(4,26,82,.04) 12%,
+      rgba(4,26,82,0) 30%, rgba(4,26,82,0) 70%,
+      rgba(4,26,82,.04) 88%, rgba(4,26,82,.18) 100%);
+  }
+  .strip{
+    position:absolute;left:0;top:0;width:100%;z-index:2;
+    will-change:transform;transform:translate3d(0,0,0);
+  }
+  .strip[hidden]{display:none;}
+  .strip.b1{filter:blur(1.1px);}
+  .strip.b2{filter:blur(2.2px);}
+  .strip.b3{filter:blur(3.4px);}
+  .cell{width:100%;display:flex;align-items:center;justify-content:center;}
+  .cell img{max-width:82%;max-height:82%;width:auto;height:auto;object-fit:contain;pointer-events:none;}
+  .cell.landed img{animation:landPop .45s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes landPop{
+    0%{transform:scale(.82);}
+    60%{transform:scale(1.07);}
+    100%{transform:scale(1);}
+  }
+  .reelHint{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:82%;text-align:center;z-index:3;
+    font-size:clamp(13px,2.6vmin,26px);font-weight:800;color:#8fa2c8;line-height:1.5;
+  }
+  .burst{
+    position:absolute;left:50%;top:50%;width:88%;z-index:3;
+    transform:translate(-50%,-50%) scale(.2);opacity:0;pointer-events:none;
+  }
+  .burst.show{animation:burstPop 1s ease-out;}
+  @keyframes burstPop{
+    0%{transform:translate(-50%,-50%) scale(.2) rotate(-14deg);opacity:0;}
+    28%{transform:translate(-50%,-50%) scale(1) rotate(6deg);opacity:.96;}
+    100%{transform:translate(-50%,-50%) scale(1.34) rotate(18deg);opacity:0;}
+  }
+
+  .controls{flex:0 0 auto;display:flex;align-items:center;justify-content:center;z-index:1;}
+  .bigBtn{
+    background:none;border:none;padding:0;cursor:pointer;display:block;line-height:0;
+    transition:transform .08s ease, filter .2s ease;
+    filter:drop-shadow(0 1vmin 1vmin rgba(4,26,82,.34));
+  }
+  .bigBtn img{display:block;width:100%;height:auto;}
+  .bigBtn:active{transform:translateY(1vmin) scale(.97);}
+  .bigBtn:disabled{filter:grayscale(.7) opacity(.45);cursor:default;}
+  .bigBtn:focus-visible{outline:.5vmin solid var(--navy);outline-offset:.8vmin;border-radius:50%;}
+  .bigBtn.pulse:not(:disabled){animation:btnPulse 1.5s ease-in-out infinite;}
+  @keyframes btnPulse{
+    0%,100%{transform:scale(1);}
+    50%{transform:scale(1.07);}
+  }
+
+  /* 横向き：題名と START を機械の右に縦積み（機械が高さをフルに使える） */
+  @media (orientation:landscape){
+    .playArea{flex-direction:row;}
+    .titleTop{display:none;}
+    .side{flex-direction:column;gap:3vmin;width:min(26vw,300px);}
+    .titleSide img{max-width:100%;max-height:24vh;}
+    .titleSide .titlePlate{max-width:100%;font-size:clamp(15px,2.4vw,30px);}
+    .controls{width:100%;}
+    .bigBtn{width:min(100%,190px);}
+  }
+  /* 縦向き：題名は上、START は下 */
+  @media (orientation:portrait){
+    .playArea{flex-direction:column;}
+    .titleSide{display:none;}
+    .titleTop{padding:.4vmin 0 1vmin;}
+    .titleTop img{max-height:min(9vh,80px);max-width:76vw;}
+    .titleTop .titlePlate{max-width:88vw;}
+    .side{height:min(19vh,150px);}
+    .controls{height:100%;}
+    .bigBtn{height:100%;}
+    .bigBtn img{width:auto;height:100%;}
+  }
+
+  /* 結果の帯：赤いプレートを9分割で伸ばして使う。
+     高さを固定しておく。文字が入って帯が高くなると
+     そのぶん機械が縮んでしまうため。 */
+  .resultBar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    height:max(13vmin,60px);padding:0 1vmin;
+  }
+  .plate{
+    display:flex;align-items:center;justify-content:center;gap:2.4vmin;flex-wrap:wrap;
+    border-style:solid;
+    border-width:clamp(14px,2.8vmin,34px);
+    border-image:url("assets/plate.png") 40 fill stretch;
+    padding:0 1.6vmin;min-height:1px;
+    opacity:0;transform:translateY(1.4vmin) scale(.96);
+    transition:opacity .3s ease, transform .3s ease;
+    filter:drop-shadow(0 .6vmin .8vmin rgba(4,26,82,.3));
+  }
+  .plate.show{opacity:1;transform:translateY(0) scale(1);}
+  .resultName{
+    font-size:clamp(17px,4.2vmin,44px);font-weight:900;color:#fff;
+    text-shadow:0 .28vmin 0 var(--navy);
+  }
+  .resultAction{
+    font-size:clamp(19px,4.8vmin,50px);font-weight:900;color:var(--yellow);
+    text-shadow:0 .34vmin 0 var(--navy);
+  }
+
+  /* ============ 設定画面（別画面） ============ */
+  /* 設定画面と つくる画面は 縦に長くなるので、中でスクロールさせる。
+     body は overflow:hidden なので、ここで指定しないと はみ出した分に届かない。 */
+  #settingsScreen, #editScreen{
+    background:var(--cloud);
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;   /* タブレットで指スクロールを滑らかに */
+    overscroll-behavior:contain;
+    padding:0 0 4vmin;
+  }
+  /* 見出しは 青地に白ぬき＋黄色の下線。道路標識の案内板のイメージ */
+  .setHead{
+    display:flex;align-items:center;gap:2vmin;flex-wrap:wrap;
+    background:var(--blue);
+    border-bottom:.8vmin solid var(--yellow);
+    padding:2vmin 3vmin;margin-bottom:3vmin;
+    position:sticky;top:0;z-index:5;
+    box-shadow:0 .5vmin 1.2vmin rgba(4,26,82,.25);
+  }
+  .setHead h1{
+    margin:0;font-size:clamp(20px,4vmin,38px);color:#fff;
+    text-shadow:0 .25vmin 0 rgba(4,26,82,.6);
+  }
+  .setHead .spacer{flex:1 1 auto;}
+  .backBtn{
+    background:none;border:none;padding:0;cursor:pointer;line-height:0;
+    filter:drop-shadow(0 .4vmin .4vmin rgba(4,26,82,.45));transition:transform .08s ease;
+  }
+  .backBtn:active{transform:translateY(.5vmin);}
+  .backBtn img{display:block;width:clamp(52px,8vmin,84px);height:auto;}
+
+  .setSection{
+    --accent:var(--blue);
+    background:#fff;border:.36vmin solid var(--navy);border-radius:20px;
+    border-left:1.4vmin solid var(--accent);
+    padding:2.4vmin;margin:0 3vmin 2.4vmin;
+    box-shadow:0 .6vmin 0 rgba(4,26,82,.16);
+  }
+  .setSection.acc-blue  {--accent:var(--blue);}
+  .setSection.acc-red   {--accent:var(--red);}
+  .setSection.acc-yellow{--accent:var(--yellow);}
+
+  /* 見出しの前に 標識の形の目印をつける（丸＝青、三角＝赤、ひし形＝黄） */
+  .setSection h2{
+    margin:0 0 .6em;font-size:clamp(16px,2.8vmin,26px);color:var(--navy);
+    display:flex;align-items:center;gap:.5em;
+  }
+  .setSection h2::before{
+    content:"";flex:0 0 auto;
+    width:clamp(16px,2.4vmin,24px);height:clamp(16px,2.4vmin,24px);
+    background:var(--accent);border:.28vmin solid var(--navy);
+  }
+  .setSection.acc-blue h2::before  {border-radius:50%;}
+  .setSection.acc-yellow h2::before{transform:rotate(45deg);}
+  .setSection.acc-red h2::before{
+    background:none;border:none;
+    width:0;height:0;
+    border-left:clamp(9px,1.4vmin,14px) solid transparent;
+    border-right:clamp(9px,1.4vmin,14px) solid transparent;
+    border-bottom:clamp(16px,2.4vmin,24px) solid var(--red);
+  }
+  .setSection .note{margin:-.4em 0 1em;font-size:clamp(12px,1.9vmin,17px);color:var(--ink2);line-height:1.6;}
+
+  /* セットえらび */
+  .setList{display:flex;gap:1.6vmin;flex-wrap:wrap;}
+  .setCard{
+    display:flex;align-items:center;gap:1.2vmin;
+    border:4px solid var(--line);border-radius:18px;background:#fff;
+    padding:1.2vmin 1.8vmin;cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .setCard.on{border-color:var(--blue);background:#eef6ff;}
+  .setCard .thumbs{display:flex;gap:.3vmin;}
+  .setCard .thumbs img{
+    width:clamp(30px,4.6vmin,46px);height:clamp(30px,4.6vmin,46px);object-fit:contain;
+  }
+  .setCard .info{display:flex;flex-direction:column;align-items:flex-start;}
+  .setCard .nm{font-size:clamp(14px,2.4vmin,21px);font-weight:800;color:var(--navy);}
+  .setCard .cnt{font-size:clamp(11px,1.7vmin,15px);color:var(--ink2);}
+
+  .signGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1.6vmin;}
+  .signItem{
+    display:flex;flex-direction:column;align-items:center;gap:.5em;
+    padding:1.2vmin;border:4px solid var(--line);border-radius:16px;
+    cursor:pointer;background:#fff;transition:border-color .15s ease, background .15s ease;
+  }
+  .signItem.on{border-color:var(--blue);background:#eef6ff;}
+  .signItem img{width:clamp(48px,8vmin,84px);height:clamp(48px,8vmin,84px);object-fit:contain;}
+  .signItem .nm{font-size:clamp(12px,1.9vmin,17px);font-weight:800;text-align:center;line-height:1.25;}
+  .signItem .mark{
+    width:clamp(24px,3.4vmin,32px);height:clamp(24px,3.4vmin,32px);border-radius:50%;
+    border:3px solid var(--line);display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:900;font-size:clamp(14px,2.2vmin,20px);
+  }
+  .signItem.on .mark{background:var(--blue);border-color:var(--blue);}
+  .signItem.on .mark::after{content:"✓";}
+
+  .chips{display:flex;gap:1.4vmin;flex-wrap:wrap;}
+  .chip{
+    border:4px solid var(--blue);background:#fff;color:var(--blue);border-radius:99px;
+    padding:.5em 1.4em;font-size:clamp(14px,2.4vmin,22px);font-weight:800;cursor:pointer;
+  }
+  .chip.on{background:var(--blue);color:#fff;}
+
+  .soundRow{display:flex;align-items:center;gap:1.6vmin;flex-wrap:wrap;margin-bottom:1.6vmin;}
+  .soundBtn{
+    border:.36vmin solid var(--navy);border-radius:99px;
+    background:var(--blue);color:#fff;cursor:pointer;
+    display:flex;align-items:center;gap:.6em;
+    padding:.5em 1.3em;font-size:clamp(14px,2.4vmin,21px);font-weight:800;
+    box-shadow:0 .5vmin 0 var(--navy);
+  }
+  .soundBtn:active{transform:translateY(.5vmin);box-shadow:none;}
+  .soundBtn svg{width:1.5em;height:1.5em;fill:var(--yellow);}
+  .soundBtn.off{background:var(--red);}   /* 音を切っている＝赤（禁止の色） */
+
+  .voiceRow{display:flex;align-items:center;gap:1.4vmin;flex-wrap:wrap;}
+  .voiceRow label{font-weight:800;font-size:clamp(13px,2.2vmin,19px);color:var(--navy);}
+  .voiceRow select{
+    font:inherit;font-size:clamp(13px,2.2vmin,19px);
+    padding:.45em .8em;border:3px solid var(--line);border-radius:12px;background:#fff;
+    max-width:min(70vw,420px);
+  }
+  .voiceRow button{
+    border:none;border-radius:99px;padding:.5em 1.3em;
+    font-size:clamp(13px,2.2vmin,19px);font-weight:800;color:#fff;
+    background:var(--navy);cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.2);
+  }
+  .voiceRow button:active{transform:translateY(3px);box-shadow:none;}
+
+  /* 入力欄 */
+  .fieldRow{display:flex;align-items:center;gap:1.2vmin;margin-bottom:1.2vmin;flex-wrap:wrap;}
+  .fieldRow label{
+    min-width:7em;font-weight:800;color:var(--navy);
+    font-size:clamp(13px,2.2vmin,19px);
+  }
+  .fieldRow input[type=text]{
+    font:inherit;font-size:clamp(13px,2.2vmin,19px);
+    padding:.45em .8em;border:3px solid var(--line);border-radius:12px;background:#fff;
+    flex:1 1 12em;min-width:8em;max-width:26em;
+  }
+  .fieldRow input[type=text]:focus{border-color:var(--blue);outline:none;}
+
+  /* つくったセットの一覧 */
+  .userSetList{display:flex;flex-direction:column;gap:1.2vmin;}
+  .userSetRow{
+    display:flex;align-items:center;gap:1.2vmin;flex-wrap:wrap;
+    border:3px solid var(--line);border-radius:16px;padding:1.2vmin;background:#fff;
+  }
+  .userSetRow .thumbs{display:flex;gap:.3vmin;}
+  .userSetRow .thumbs img{
+    width:clamp(28px,4.2vmin,42px);height:clamp(28px,4.2vmin,42px);object-fit:contain;
+  }
+  .userSetRow .nm{font-weight:800;color:var(--navy);font-size:clamp(13px,2.2vmin,19px);}
+  .userSetRow .cnt{color:var(--ink2);font-size:clamp(11px,1.7vmin,15px);}
+  .userSetRow .spacer{flex:1 1 auto;}
+  .emptyNote{color:var(--ink2);font-size:clamp(12px,1.9vmin,17px);}
+
+  /* カードの編集 */
+  .cardEditList{display:flex;flex-direction:column;gap:1.2vmin;}
+  .cardEdit{
+    display:flex;align-items:flex-start;gap:1.4vmin;flex-wrap:wrap;
+    border:3px solid var(--line);border-radius:16px;padding:1.2vmin;background:#fff;
+  }
+  .cardEdit .pic{
+    width:clamp(64px,10vmin,104px);height:clamp(64px,10vmin,104px);
+    border:3px dashed var(--line);border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--cloud);cursor:pointer;flex:0 0 auto;overflow:hidden;
+  }
+  .cardEdit .pic img{width:100%;height:100%;object-fit:contain;}
+  .cardEdit .pic span{font-size:clamp(10px,1.6vmin,13px);color:var(--ink2);text-align:center;font-weight:800;}
+  .cardEdit .fields{flex:1 1 14em;min-width:12em;display:flex;flex-direction:column;gap:.6vmin;}
+  .cardEdit .fields input{
+    font:inherit;font-size:clamp(12px,2vmin,17px);
+    padding:.35em .7em;border:3px solid var(--line);border-radius:10px;background:#fff;
+  }
+  .cardEdit .fields input:focus{border-color:var(--blue);outline:none;}
+  .cardEdit .del{
+    border:none;border-radius:99px;background:var(--red);color:#fff;cursor:pointer;
+    font-weight:800;font-size:clamp(12px,2vmin,17px);padding:.4em 1em;flex:0 0 auto;
+  }
+
+  .miniBtns{display:flex;gap:1.4vmin;flex-wrap:wrap;}
+  .miniBtn{
+    border:none;border-radius:99px;padding:.55em 1.5em;
+    font-size:clamp(13px,2.2vmin,20px);font-weight:800;color:#fff;cursor:pointer;
+    box-shadow:0 4px 0 rgba(0,0,0,.18);
+  }
+  .miniBtn:active{transform:translateY(3px);box-shadow:none;}
+  /* 青＝すすめる操作、黄＝ひかえめな操作、赤＝消す・もどす操作 */
+  .miniBtn.all{background:var(--blue);}
+  .miniBtn.few{
+    background:var(--yellow);color:var(--navy);
+    box-shadow:0 4px 0 rgba(4,26,82,.35);
+  }
+  .miniBtn.danger{background:var(--red);}
+
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden;}
+  .conf{
+    position:absolute;top:-12vmin;
+    width:2.4vmin;height:3.4vmin;border-radius:.5vmin;
+    border:.3vmin solid var(--navy);
+    animation:fall linear forwards;
+  }
+  @keyframes fall{
+    0%{transform:translateY(0) rotate(0deg);opacity:1;}
+    100%{transform:translateY(118vh) rotate(430deg);opacity:.3;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .conf,.burst.show,.bigBtn.pulse,.cell.landed img{animation:none!important;}
+    .burst.show{opacity:0;}
+    .strip.b1,.strip.b2,.strip.b3{filter:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== あそぶ画面 ===== -->
+<div class="screen" id="playScreen">
+  <div class="corner">
+    <button class="iconBtn danger" id="btnReset" title="はじめから" aria-label="はじめから">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 8 8h-2.1A5.9 5.9 0 1 1 12 6.1c1.63 0 3.1.66 4.17 1.73L13 11h7V4l-2.35 2.35z"/>
+      </svg>
+    </button>
+    <button class="iconBtn" id="btnToSettings" title="せんせい用 せってい" aria-label="せんせい用 せってい">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-1.9-3.3-2.4 1a7.4 7.4 0 0 0-1.7-1l-.4-2.5H11l-.4 2.5c-.6.2-1.2.6-1.7 1l-2.4-1L4.6 9.4 6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 1.9 3.3 2.4-1c.5.4 1.1.8 1.7 1l.4 2.5h3.9l.4-2.5c.6-.2 1.2-.6 1.7-1l2.4 1 1.9-3.3-2-1.6zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="remainBadge" id="remainBadge" hidden></div>
+
+  <!-- 題名。中身はセットに合わせて JS が入れる -->
+  <div class="titleBar titleTop" id="titleTop"></div>
+
+  <div class="playArea">
+    <div class="machineBox" id="machineBox">
+      <img class="machineImg" src="assets/machine.png" alt="ルーレットの きかい">
+      <div class="reel" id="reel" role="button" tabindex="0" aria-live="polite"
+           aria-label="ここを おしても スタート できます">
+        <div class="strip" id="strip" hidden></div>
+        <div class="reelHint" id="reelHint">スタートを<br>おしてね</div>
+        <img class="burst" id="burst" src="assets/sparkle.png" alt="">
+      </div>
+    </div>
+
+    <div class="side" id="side">
+      <div class="titleBar titleSide" id="titleSide"></div>
+      <div class="controls">
+        <button class="bigBtn pulse" id="btnStart" aria-label="スタート">
+          <img src="assets/btn-start-blank.png" alt="">
+          <svg class="overlayText" id="startText" aria-hidden="true"></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="resultBar">
+    <div class="plate" id="resultPlate">
+      <span class="resultName" id="resultName"></span>
+      <span class="resultAction" id="resultAction"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 設定画面（別画面） ===== -->
+<div class="screen" id="settingsScreen" hidden>
+  <div class="setHead">
+    <h1>せんせい用 せってい</h1>
+    <span class="spacer"></span>
+    <button class="backBtn" id="btnBack" aria-label="あそぶ画面にもどる">
+      <img src="assets/arrow-left.png" alt="もどる">
+    </button>
+  </div>
+
+  <div class="setSection acc-blue">
+    <h2>つかう セット</h2>
+    <p class="note">
+      べつのセットに まるごと 切りかえられます。<br>
+      セットの ふやしかたは <code>sets.js</code> の いちばん上に 書いてあります。
+    </p>
+    <div class="setList" id="setList"></div>
+  </div>
+
+  <div class="setSection acc-red">
+    <h2>つかう カード</h2>
+    <p class="note">チェックした カードだけが ルーレットに でます。（1つ以上）</p>
+    <div class="miniBtns" style="margin-bottom:1.6vmin;">
+      <button class="miniBtn all" id="selAll">ぜんぶ つかう</button>
+      <button class="miniBtn few" id="selFew">1つだけに する</button>
+    </div>
+    <div class="signGrid" id="signGrid"></div>
+  </div>
+
+  <div class="setSection acc-yellow">
+    <h2>イラストの 文字</h2>
+    <p class="note">看板と スタートボタンの 文字を 書きかえられます。空にすると 文字なしになります。</p>
+    <div class="fieldRow">
+      <label for="inTitle1">看板 1行目</label>
+      <input type="text" id="inTitle1" maxlength="20" placeholder="SLOT">
+    </div>
+    <div class="fieldRow">
+      <label for="inTitle2">看板 2行目</label>
+      <input type="text" id="inTitle2" maxlength="20" placeholder="CHALLENGE">
+    </div>
+    <div class="fieldRow">
+      <label for="inStart">ボタン</label>
+      <input type="text" id="inStart" maxlength="12" placeholder="START">
+    </div>
+    <div class="miniBtns" style="margin-top:1.2vmin;">
+      <button class="miniBtn few" id="btnTextDefault">もとに もどす</button>
+    </div>
+  </div>
+
+  <div class="setSection acc-blue">
+    <h2>セットの 編集</h2>
+    <p class="note">
+      「なおす」で、名前・よみ・やることを 直せます。<br>
+      もとから入っているセットにも、あとから <b>カードを ふやせます</b>
+      （もとの絵は そのまま、足したカードは 消せます）。<br>
+      「＋ 新しいセット」なら まるごと 作れます。作ったセットは
+      このブラウザに 保存されます。ほかの機械でも使うときは「書き出す」で
+      ファイルにして 持っていってください。
+    </p>
+    <div class="userSetList" id="userSetList"></div>
+    <div class="miniBtns" style="margin-top:1.6vmin;">
+      <button class="miniBtn all" id="btnNewSet">＋ 新しいセット</button>
+      <button class="miniBtn few" id="btnExportSets">書き出す</button>
+      <button class="miniBtn few" id="btnImportSets">読みこむ</button>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden>
+    </div>
+  </div>
+
+  <div class="setSection acc-red">
+    <h2>一度 出たカード</h2>
+    <p class="note">
+      「もう出さない」に すると、出たカードは つぎから でません。<br>
+      ひとりずつ ちがう カードに したいときに つかいます。
+      あそぶ画面の 左上に のこり枚数が でます。<br>
+      とちゅうで この設定画面を 見たり、セットを 行き来しても、
+      のこりは そのまま つづきます。<br>
+      ぜんぶ 出たあとは、もう一度 スタートを おすと 新しい回に なります。
+    </p>
+    <div class="chips" id="repeatChips">
+      <button class="chip" data-key="repeat">また出る（ふつう）</button>
+      <button class="chip" data-key="once">もう出さない</button>
+    </div>
+    <div class="miniBtns" style="margin-top:1.6vmin;">
+      <button class="miniBtn all" id="btnNewRound">のこりを ぜんぶ もどす</button>
+      <span class="cnt" id="remainNow" style="align-self:center;font-size:clamp(12px,2vmin,18px);color:var(--ink2);font-weight:800;"></span>
+    </div>
+  </div>
+
+  <div class="setSection acc-yellow">
+    <h2>まわりかた</h2>
+    <p class="note">スタートを おすと、ひとりでに ゆっくり 止まります。目で追うのが ゆっくりな お子さんには「ゆっくり」を。</p>
+    <div class="chips" id="speedChips">
+      <button class="chip" data-key="slow">ゆっくり（5びょう）</button>
+      <button class="chip" data-key="normal">ふつう（4びょう）</button>
+      <button class="chip" data-key="fast">はやい（3びょう）</button>
+    </div>
+  </div>
+
+  <div class="setSection acc-blue">
+    <h2>音・読み上げ</h2>
+    <div class="soundRow">
+      <button class="soundBtn" id="btnSound" aria-label="音のオンオフ">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1c2.9.9 5 3.5 5 6.7s-2.1 5.9-5 6.7v2.1c4-.9 7-4.5 7-8.8s-3-7.9-7-8.8z"/>
+        </svg>
+        <span id="soundState">音 ON</span>
+      </button>
+    </div>
+    <div class="voiceRow">
+      <label for="voiceSel">声：</label>
+      <select id="voiceSel"></select>
+      <button id="btnTestVoice" type="button">聞いてみる</button>
+    </div>
+    <p class="note" style="margin-top:1.2vmin;">
+      「Natural」「Online」「Google」と付いた声ほど なめらかです。見あたらない場合は
+      Windowsの 設定 → 時刻と言語 → 音声認識 → 音声の管理 から追加できます。<br>
+      いちばん自然なのは <b>先生の声を録音して使う</b>方法です。カードの名前を ファイル名にした
+      mp3 を、そのセットの 声のフォルダ（いまは <code id="voiceFolderNow">voice/</code>）に置くと、
+      読み上げの かわりに その音声が流れます。
+    </p>
+  </div>
+</div>
+
+<!-- ===== セットをつくる画面 ===== -->
+<div class="screen" id="editScreen" hidden>
+  <div class="setHead">
+    <h1 id="editTitle">セットを つくる</h1>
+    <span class="spacer"></span>
+    <button class="backBtn" id="btnEditBack" aria-label="やめて もどる">
+      <img src="assets/arrow-left.png" alt="もどる">
+    </button>
+  </div>
+
+  <div class="setSection acc-red">
+    <div class="fieldRow">
+      <label for="inSetName">セットの名前</label>
+      <input type="text" id="inSetName" maxlength="24" placeholder="どうぶつ">
+    </div>
+    <p class="note" id="editNote" style="margin:1em 0 0;">
+      カードを 1まい以上 入れてください。絵をえらぶと 小さくしてから保存します。
+    </p>
+  </div>
+
+  <div class="setSection acc-yellow">
+    <h2>カード</h2>
+    <div class="cardEditList" id="cardEditList"></div>
+    <div class="miniBtns" style="margin-top:1.6vmin;">
+      <button class="miniBtn all" id="btnAddCard">＋ カードを ふやす</button>
+    </div>
+  </div>
+
+  <div class="setSection acc-blue">
+    <div class="miniBtns">
+      <button class="miniBtn all" id="btnSaveSet">この セットを 保存する</button>
+      <button class="miniBtn danger" id="btnDeleteSet">この セットを 消す</button>
+    </div>
+    <p class="note" id="editMsg" style="margin:1.2vmin 0 0;"></p>
+  </div>
+</div>
+
+<div id="fx"></div>
+
+<script src="sets.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* sets.js に書いたセット（ファイルで管理するぶん）と
+     アプリの中で作ったセット（このブラウザに保存されるぶん）を つなげて使う */
+  var BUILTIN_RAW = (typeof SIGN_SETS !== "undefined" && SIGN_SETS && SIGN_SETS.length)
+    ? SIGN_SETS.slice() : [];
+  var USER_KEY = "slot-challenge-usersets";
+  var OVR_KEY  = "slot-challenge-overrides";
+  var userSets = [];
+  /* sets.js のセットの 文字だけ書きかえたぶん。
+     ファイルは書きかえられないので、変えたところだけ ここに覚えておく。
+     { セットid: { name?, items: { カード番号: {name?,yomi?,action?} } } } */
+  var overrides = {};
+  var SETS = [];
+
+  var DEFAULT_TITLE = "assets/title-blank.png";  // 文字なしの看板（文字は上に重ねて描く）
+  var DEFAULT_TITLE_LINES = ["SLOT", "CHALLENGE"];
+  var DEFAULT_START = "START";
+  var START_SOUND = "sound/決定ボタンを押す42.mp3";   // スタートを押したときの音
+  var STOP_SOUND  = "sound/スチールドラム02.mp3";      // 止まったときの音
+  var CONF_COLORS = ["#fcd402", "#e21010", "#197eef", "#ffffff"];
+
+  // cps = 1秒に流れるカードの枚数 / dur = スタートから止まるまでの秒数
+  var SPEEDS = {
+    slow:   { cps: 3.5,  dur: 5.0 },
+    normal: { cps: 7.0,  dur: 4.0 },
+    fast:   { cps: 12.0, dur: 3.0 }
+  };
+
+  var setIdx = 0;                 // いま使っているセット
+  var enabledBySet = {};          // { セットid: [使うカードの番号...] }
+  var enabled = [];               // いまのセットの分（enabledBySet の中身への参照）
+  var speedKey = "normal";
+  var soundOn = true;
+  var voiceURI = "";
+  var noRepeat = false;           // 一度出たカードを もう出さない
+  var drawn = {};                 // { セットid: [出したカードの番号...] } 今の回のぶん
+  var titleLines = DEFAULT_TITLE_LINES.slice();   // 看板の文字
+  var startLabel = DEFAULT_START;                 // ボタンの文字
+
+  var $ = function(id){ return document.getElementById(id); };
+  var playScreen = $("playScreen"), settingsScreen = $("settingsScreen");
+  var reel = $("reel"), strip = $("strip"), reelHint = $("reelHint"), burst = $("burst");
+  var btnStart = $("btnStart");
+  var resultPlate = $("resultPlate"), resultName = $("resultName"), resultAction = $("resultAction");
+  var signGrid = $("signGrid"), setList = $("setList"), remainBadge = $("remainBadge");
+  var btnSound = $("btnSound"), soundState = $("soundState");
+  var voiceSel = $("voiceSel"), voiceFolderNow = $("voiceFolderNow");
+  var fx = $("fx");
+  var machineBox = $("machineBox"), playArea = document.querySelector(".playArea");
+  var side = $("side"), titleTop = $("titleTop"), titleSide = $("titleSide");
+  var resultBar = document.querySelector(".resultBar");
+  var editScreen = $("editScreen");
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  /* ================= セット ================= */
+  function loadUserSets(){
+    try{
+      var a = JSON.parse(localStorage.getItem(USER_KEY) || "[]");
+      if(!Array.isArray(a)) return [];
+      return a.filter(function(s){
+        return s && s.id && s.name && Array.isArray(s.items) && s.items.length;
+      });
+    }catch(e){ return []; }
+  }
+  function saveUserSets(){                 // 容量オーバーは呼んだ側で受け止める
+    localStorage.setItem(USER_KEY, JSON.stringify(userSets));
+  }
+  function loadOverrides(){
+    try{
+      var o = JSON.parse(localStorage.getItem(OVR_KEY) || "{}");
+      return (o && typeof o === "object" && !Array.isArray(o)) ? o : {};
+    }catch(e){ return {}; }
+  }
+  function saveOverrides(){ localStorage.setItem(OVR_KEY, JSON.stringify(overrides)); }
+
+  // sets.js のセットに 書きかえたぶんを かぶせたものを返す（元の定義は触らない）
+  function builtinSets(){
+    return BUILTIN_RAW.map(function(s){
+      var o = overrides[s.id];
+      if(!o) return s;
+      var pick = function(a, b){ return (a === undefined || a === null) ? b : a; };
+      var base = (s.items || []).map(function(it, i){
+        var oi = o.items && o.items[i];
+        if(!oi) return it;
+        return { file: it.file, img: it.img,
+                 name:   pick(oi.name,   it.name),
+                 yomi:   pick(oi.yomi,   it.yomi),
+                 action: pick(oi.action, it.action) };
+      });
+      // あとから足したカード（絵はブラウザの中に持っている）
+      var extra = Array.isArray(o.extra) ? o.extra.filter(function(c){
+        return c && c.img && c.name;
+      }) : [];
+      return {
+        id: s.id, title: s.title, folder: s.folder, voice: s.voice,
+        name: pick(o.name, s.name),
+        items: base.concat(extra)
+      };
+    });
+  }
+  function isBuiltin(id){
+    for(var i = 0; i < BUILTIN_RAW.length; i++) if(BUILTIN_RAW[i].id === id) return true;
+    return false;
+  }
+  function curSetById(id){
+    for(var i = 0; i < SETS.length; i++) if(SETS[i].id === id) return SETS[i];
+    return null;
+  }
+
+  /* カードの枚数が変わったとき、「使うカード」と「出たカード」の番号をそろえる。
+     増えたぶんは そのまま使う。減ったときは 番号がずれるので ぜんぶ使うに戻す。 */
+  function reconcile(id, oldLen, newLen){
+    if(oldLen === newLen) return;
+    var list = [];
+    if(newLen > oldLen){
+      var keep = enabledBySet[id];
+      if(Array.isArray(keep)) list = keep.filter(function(i){ return i < oldLen; });
+      for(var i = oldLen; i < newLen; i++) list.push(i);      // 足したカードは 使う
+    }else{
+      for(var k = 0; k < newLen; k++) list.push(k);
+      drawn[id] = [];
+    }
+    if(!list.length) for(var m = 0; m < newLen; m++) list.push(m);
+    list.sort(function(a, b){ return a - b; });
+    enabledBySet[id] = list;
+    if(Array.isArray(drawn[id])) drawn[id] = drawn[id].filter(function(i){ return i < newLen; });
+  }
+
+  // 使えるセットの一覧を作りなおす。keepId があれば そのセットを選んだままにする
+  function rebuildSets(keepId){
+    SETS = builtinSets().concat(userSets);
+    if(!SETS.length) SETS = [{ id:"empty", name:"セットが ありません", folder:"", items:[] }];
+    var at = -1;
+    if(keepId) for(var i = 0; i < SETS.length; i++) if(SETS[i].id === keepId){ at = i; break; }
+    setIdx = at >= 0 ? at : 0;
+  }
+
+  function curSet(){ return SETS[setIdx] || SETS[0]; }
+  function items(){ return curSet().items || []; }
+  // アプリで作ったカードは絵を中に持っている（img）。ファイルのカードは folder + file
+  function itemSrc(set, item){
+    return item.img ? item.img : ((set.folder || "") + item.file);
+  }
+  function srcOf(item){ return itemSrc(curSet(), item); }
+  function voiceFolder(){
+    var v = curSet().voice;
+    return (v === undefined || v === null) ? ("voice/" + curSet().id + "/") : v;
+  }
+
+  // そのセットで使うカード番号。無ければ「ぜんぶ」で作る
+  function enabledFor(set){
+    var list = enabledBySet[set.id];
+    var n = (set.items || []).length;
+    if(Array.isArray(list)){
+      list = list.filter(function(i){ return i >= 0 && i < n; });
+      if(list.length){ enabledBySet[set.id] = list; return list; }
+    }
+    list = [];
+    for(var i = 0; i < n; i++) list.push(i);
+    enabledBySet[set.id] = list;
+    return list;
+  }
+
+  /* セットを読みこむ。記録はセットごとに持っているので ここでは消さない
+     （セットを行き来しても、それぞれの回が続く） */
+  function applySet(){
+    enabled = enabledFor(curSet());
+    paintTitle();
+    if(voiceFolderNow) voiceFolderNow.textContent = voiceFolder();
+    clearDisplay();
+    paintRemain();
+  }
+
+  /* ---------- 「一度出たら もう出さない」ためのしくみ ----------
+     記録するのは カードの番号（items の何番目か）。
+     使うカードを 途中で変えても ずれないようにするため。 */
+  function drawnList(){
+    var d = drawn[curSet().id];
+    if(!Array.isArray(d)){ d = []; drawn[curSet().id] = d; }
+    return d;
+  }
+  function clearDrawn(){ drawn[curSet().id] = []; }
+  // まだ出ていないカードの「enabled の中での位置」を返す
+  function remainingPositions(){
+    var d = drawnList(), out = [];
+    enabled.forEach(function(itemIdx, i){
+      if(d.indexOf(itemIdx) === -1) out.push(i);
+    });
+    return out;
+  }
+  function paintRemain(){
+    var left = remainingPositions().length, all = enabled.length;
+    var txt = left === 0 ? "ぜんぶ でました！" : "のこり " + left + " / " + all;
+    if(noRepeat){
+      remainBadge.hidden = false;
+      remainBadge.classList.toggle("done", left === 0);
+      remainBadge.textContent = txt;
+    }else{
+      remainBadge.hidden = true;
+    }
+    var now = $("remainNow");
+    if(now) now.textContent = noRepeat ? ("いま " + txt) : "";
+  }
+
+  /* ---------- 絵の上に重ねる文字 ----------
+     絵に焼きこまず SVG で重ねるので、設定から書きかえられる。
+     SVG は viewBox で拡大縮小されるので、画面の大きさが変わっても
+     作りなおす必要がない。 */
+  /* 英字は太い書体、日本語は丸ゴシックへ自然に落ちるように並べる */
+  var TEXT_FAMILY = '"Arial Black","Segoe UI Black",Impact,' +
+                    '"Yu Gothic Rounded","Hiragino Maru Gothic ProN","Meiryo",sans-serif';
+  var CJK = /[　-ヿ㐀-䶿一-鿿＀-￯]/;
+  var measCtx = null;
+  function textWidth100(s){                 // 100px で描いたときの幅
+    if(!measCtx) measCtx = document.createElement("canvas").getContext("2d");
+    measCtx.font = '900 100px ' + TEXT_FAMILY;
+    return measCtx.measureText(s).width;
+  }
+  function buildTextSvg(svg, lines, boxW, boxH, fill, stroke){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", "0 0 " + boxW + " " + boxH);
+    var use = lines.filter(function(t){ return t && t.length; });
+    if(!use.length) return;
+    var lh = boxH / use.length;
+    // 日本語は文字の絵が em いっぱいに描かれるので、英字より控えめにする
+    var tall = use.some(function(t){ return CJK.test(t); });
+    var size = lh * (tall ? 0.72 : 0.86);   // まず高さから上限を決める
+    use.forEach(function(t){                // 幅からも上限を決める（長い行に合わせる）
+      var w = textWidth100(t);
+      if(w > 0) size = Math.min(size, boxW / (w / 100) * 0.98);
+    });
+    use.forEach(function(t, i){
+      var el = document.createElementNS(SVGNS, "text");
+      el.setAttribute("x", boxW / 2);
+      el.setAttribute("y", lh * (i + 0.5));
+      el.setAttribute("text-anchor", "middle");
+      el.setAttribute("dominant-baseline", "central");
+      el.setAttribute("font-family", TEXT_FAMILY);
+      el.setAttribute("font-weight", "900");
+      el.setAttribute("font-size", size);
+      el.setAttribute("fill", fill);
+      if(stroke){
+        el.setAttribute("stroke", stroke);
+        el.setAttribute("stroke-width", size * 0.14);
+        el.setAttribute("paint-order", "stroke");
+        el.setAttribute("stroke-linejoin", "round");
+      }
+      el.textContent = t;
+      svg.appendChild(el);
+    });
+  }
+
+  /* 題名の看板。セットに title があればその絵をそのまま、
+     無ければ 文字なしの看板＋重ねた文字。
+     絵が読めなかったときだけ、セット名を赤いプレートに文字で出す。 */
+  function paintTitle(){
+    var s = curSet();
+    var custom = !!s.title;
+    var src = custom ? s.title : DEFAULT_TITLE;
+    [titleTop, titleSide].forEach(function(box){
+      box.innerHTML = "";
+      var wrap = document.createElement("div");
+      wrap.className = "titleWrap";
+      var im = document.createElement("img");
+      im.src = src;
+      im.alt = s.name || "";
+      im.addEventListener("load", layout);
+      im.addEventListener("error", function(){
+        box.innerHTML = "";
+        var d = document.createElement("div");
+        d.className = "titlePlate";
+        d.textContent = s.name || "";
+        box.appendChild(d);
+        layout();
+      });
+      wrap.appendChild(im);
+      if(!custom){
+        var svg = document.createElementNS(SVGNS, "svg");
+        svg.setAttribute("class", "overlayText");
+        svg.setAttribute("aria-hidden", "true");
+        buildTextSvg(svg, titleLines, 449, 199, "#fcd402", "#041a52");
+        wrap.appendChild(svg);
+      }
+      box.appendChild(wrap);
+    });
+    layout();
+  }
+
+  function paintStartText(){
+    buildTextSvg($("startText"), [startLabel], 210, 87, "#041a52", null);
+    btnStart.setAttribute("aria-label", startLabel || "スタート");
+  }
+
+  /* ================= 抽選機を画面いっぱいに ================= */
+  var MACHINE_W = 608, MACHINE_H = 641;
+  var num = function(v){ var n = parseFloat(v); return n === n ? n : 0; };
+  var sized = false;
+
+  function layout(){
+    if(playScreen.hidden) return;
+    // 抽選機以外（余白・題名・ボタン・結果の帯）だけから空きを求める。
+    // machineBox 自身を測ったり書き換えたりしないので、
+    // ResizeObserver と互いに呼び合うループにならない。
+    var ps = getComputedStyle(playScreen);
+    var innerW = playScreen.clientWidth  - num(ps.paddingLeft) - num(ps.paddingRight);
+    // titleTop は横向きでは display:none なので offsetHeight が 0 になる
+    var innerH = playScreen.clientHeight - num(ps.paddingTop)  - num(ps.paddingBottom)
+                 - titleTop.offsetHeight - resultBar.offsetHeight;
+    var pa = getComputedStyle(playArea);
+    var gap = num(pa.columnGap || pa.gap);
+    var landscape = window.innerWidth >= window.innerHeight;
+    var availW = innerW - (landscape ? side.offsetWidth  + gap : 0);
+    var availH = innerH - (landscape ? 0 : side.offsetHeight + gap);
+    var scale = Math.min(availW / MACHINE_W, availH / MACHINE_H);
+    if(!(scale > 0)) return;
+    var w = Math.floor(MACHINE_W * scale);
+    if(w <= 0) return;
+    sized = true;
+    if(machineBox.offsetWidth !== w){
+      machineBox.style.width  = w + "px";
+      machineBox.style.height = Math.floor(MACHINE_H * scale) + "px";
+    }
+    sizeStrip();
+  }
+
+  window.addEventListener("resize", layout);
+  window.addEventListener("orientationchange", layout);
+  window.addEventListener("load", layout);
+  document.addEventListener("visibilitychange", layout);
+  document.querySelector(".machineImg").addEventListener("load", layout);
+  requestAnimationFrame(function(){ layout(); requestAnimationFrame(layout); });
+  if(window.ResizeObserver){ new ResizeObserver(layout).observe(playScreen); }
+  // 画面が隠れた状態で開かれると requestAnimationFrame も ResizeObserver も
+  // 動かないことがある。測れるようになるまで setTimeout で粘る。
+  (function retry(n){
+    layout();
+    if(!sized && n < 60) setTimeout(function(){ retry(n + 1); }, 100);
+  })(0);
+
+  /* ================= リール =================
+     カードを縦に並べた帯を作り、実際にスクロールさせる。
+     帯は「使うカード」を2周ぶん並べてあるので、1周ぶん(L)で折り返せば
+     途切れずに回り続けて見える。絵は上から下へ流れる。 */
+
+  var cellH = 0, L = 0, pos = 0;
+  var spinning = false, raf = null, watchdog = null, deadman = null;
+  var spinCount = 0;              // 何回目の回転か（音の行きちがいを防ぐ目印）
+  var blurLv = -1, lastCell = 0, lastClickAt = 0;
+
+  function buildStrip(){
+    strip.innerHTML = "";
+    var list = items();
+    var order = enabled.concat(enabled);       // 2周ぶん
+    order.forEach(function(idx){
+      var cell = document.createElement("div");
+      cell.className = "cell";
+      var img = document.createElement("img");
+      img.src = srcOf(list[idx]);
+      img.alt = list[idx].name;
+      cell.appendChild(img);
+      strip.appendChild(cell);
+    });
+    cellH = 0;
+    sizeStrip();
+  }
+
+  function sizeStrip(){
+    if(!strip.children.length) return;
+    var h = reel.clientHeight;
+    if(!h || h === cellH) return;
+    cellH = h;
+    L = enabled.length * cellH;
+    for(var i = 0; i < strip.children.length; i++){
+      strip.children[i].style.height = cellH + "px";
+    }
+    applyPos();
+  }
+
+  // pos が増えると帯は下へ動く＝絵は上から下へ流れる。
+  // 見えているコマ番号は (L - m) / cellH。
+  function applyPos(){
+    if(!L) return;
+    var m = ((pos % L) + L) % L;
+    strip.style.transform = "translate3d(0," + (m - L) + "px,0)";
+  }
+
+  function setBlur(level){
+    if(level === blurLv) return;
+    blurLv = level;
+    strip.classList.remove("b1","b2","b3");
+    if(level > 0) strip.classList.add("b" + level);
+  }
+
+  function clickIfCellPassed(now){
+    if(!cellH) return;
+    var c = Math.floor(pos / cellH);
+    if(c !== lastCell){
+      lastCell = c;
+      if(now - lastClickAt > 55){ lastClickAt = now; clack(); }
+    }
+  }
+
+  function spin(){
+    if(spinning) return;
+    if(!enabled.length){ openSettings(); return; }
+    initAudio();
+    shutUp();
+    spinCount++;
+    playSfx(START_SOUND);
+
+    buildStrip();
+    /* 窓の高さが測れていないと 計算が全部おかしくなるので、
+       いちど測りなおす。それでもだめなら 今回は回さない。 */
+    if(!cellH){ sizeStrip(); }
+    if(!cellH || !L){
+      clearDisplay();
+      layout();
+      return;
+    }
+    strip.hidden = false;
+    reelHint.hidden = true;
+    resultPlate.classList.remove("show");
+    burst.classList.remove("show");
+    var was = strip.querySelector(".cell.landed");
+    if(was) was.classList.remove("landed");
+
+    spinning = true;
+    btnStart.disabled = true;
+    btnStart.classList.remove("pulse");
+
+    var prof = SPEEDS[speedKey] || SPEEDS.normal;
+
+    /* 「加速 → 一定速 → 減速」を、境目で速度がそろうようにつなぐ。
+         加速(ta秒)  : 0 → v   進む距離 = v*ta/2
+         一定速(tc秒): v       進む距離 = v*tc
+         減速(td秒)  : v → 0   進む距離 = v*td/4   ← 1-(1-u)^4 の出だしの傾きが 4
+       総移動距離 = v*K。狙ったコマにぴたり着く値に丸めてから v を逆算する。 */
+    var ta = 0.45;
+    var td = Math.min(1.7, prof.dur * 0.42);
+    var tc = Math.max(0.2, prof.dur - ta - td);
+    var K  = ta/2 + tc + td/4;
+
+    var n = enabled.length;
+    var showIdx;
+    if(noRepeat){
+      var pool = remainingPositions();
+      if(!pool.length){ clearDrawn(); pool = remainingPositions(); }   // ぜんぶ出たら新しい回
+      showIdx = pool[Math.floor(Math.random() * pool.length)];
+    }else{
+      showIdx = Math.floor(Math.random() * n);
+    }
+    var target  = ((n - showIdx) % n) * cellH;            // そのとき帯が居るべき位置
+    var landedCell = (showIdx === 0) ? n : showIdx;       // 窓に入るコマ
+
+    var want = prof.cps * cellH * K;
+    var d = (((target - want) % L) + L) % L;
+    if(d > L/2) d -= L;                                   // 近いほうへ寄せる
+    var total = want + d;
+    // L が 0 だと 足しても増えず 永久に回り続けてしまうので、必ず前へ進む形にする
+    for(var guard = 0; L > 0 && total < L * 0.75 && guard < 10; guard++) total += L;
+    var v = total / K;
+
+    var dA = v*ta/2, dC = v*td/4, t2 = ta + tc;
+    var nominal = prof.cps * cellH;
+    var t0 = performance.now();
+    pos = 0; lastCell = 0;
+
+    function frame(now){
+      var t = (now - t0)/1000, vel;
+      if(t < ta){
+        pos = v*t*t/(2*ta);          vel = v*t/ta;
+      }else if(t < t2){
+        pos = dA + v*(t-ta);         vel = v;
+      }else{
+        var u = Math.min(1, (t-t2)/td), w = 1-u;
+        pos = dA + v*tc + dC*(1 - w*w*w*w);
+        vel = v*w*w*w;
+        if(u >= 1){ finish(showIdx, landedCell, total); return; }
+      }
+      var r = vel / nominal;
+      setBlur(r > .8 ? 3 : r > .5 ? 2 : r > .2 ? 1 : 0);
+      applyPos();
+      clickIfCellPassed(now);
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+
+    // 保険その1：ほかのアプリに切り替えると requestAnimationFrame が止まり、
+    // 回りっぱなしで戻れなくなる。予定時間を過ぎたら結果まで進める。
+    watchdog = setTimeout(function(){
+      watchdog = null;
+      finish(showIdx, landedCell, target);
+    }, Math.round((prof.dur + 1.5) * 1000));
+
+    /* 保険その2：上のどこかでつまずいて 結果まで行けなかったときの最後の砦。
+       じゅうぶん待っても まだ回りっぱなし／スタートが押せないままなら、
+       見た目を戻して また遊べるようにする。 */
+    if(deadman) clearTimeout(deadman);
+    deadman = setTimeout(function(){
+      deadman = null;
+      if(spinning || btnStart.disabled) clearDisplay();
+    }, Math.round((prof.dur + 5) * 1000));
+  }
+
+  function finish(showIdx, landedCell, endPos){
+    if(!spinning) return;
+    if(raf){ cancelAnimationFrame(raf); raf = null; }
+    if(watchdog){ clearTimeout(watchdog); watchdog = null; }
+    spinning = false;
+    pos = endPos;
+    applyPos();
+    setBlur(0);
+    land(showIdx, landedCell);
+  }
+
+  /* 結果を出す。ここで何かにつまずいても スタートは必ず押せる状態に戻す。
+     （戻し忘れると 見た目は止まったまま 何も反応しなくなってしまう） */
+  function land(showIdx, landedCell){
+    try{
+      var s = items()[enabled[showIdx]];
+      if(!s){                       // 番号がずれていたら 何もしないで戻る
+        clearDisplay();
+        return;
+      }
+      var cell = strip.children[landedCell];
+      if(cell) cell.classList.add("landed");
+
+      if(noRepeat){
+        var d = drawnList();
+        if(d.indexOf(enabled[showIdx]) === -1) d.push(enabled[showIdx]);
+        paintRemain();
+        save();                     // 記録を残す（開きなおしても続くように）
+      }
+
+      burst.classList.remove("show");
+      void burst.offsetWidth;
+      burst.classList.add("show");
+      confetti();
+      playSfx(STOP_SOUND);
+
+      resultName.textContent = s.name;
+      resultAction.textContent = s.action || "";
+      resultPlate.classList.add("show");
+
+      /* そのカードの音（踏切など）を先に鳴らし、鳴りおわってから読み上げる。
+         同時に鳴らすと どちらも聞き取れないため。 */
+      var spun = spinCount;
+      playCardSound(s, function(){
+        if(spun !== spinCount) return;      // つぎの回転が始まっていたら 読み上げない
+        say(s);
+      });
+    }finally{
+      spinning = false;
+      btnStart.disabled = false;
+      btnStart.classList.add("pulse");
+      if(deadman){ clearTimeout(deadman); deadman = null; }
+    }
+  }
+
+  /* 回転を止めて 見た目を最初の状態に戻すだけ。
+     出たカードの記録は さわらない。
+     設定画面を開いたときなどは こちらを使う。 */
+  function clearDisplay(){
+    if(raf){ cancelAnimationFrame(raf); raf = null; }
+    if(watchdog){ clearTimeout(watchdog); watchdog = null; }
+    if(deadman){ clearTimeout(deadman); deadman = null; }
+    spinning = false;
+    shutUp();
+    btnStart.disabled = false;
+    btnStart.classList.add("pulse");
+    strip.hidden = true;
+    strip.innerHTML = "";
+    cellH = 0; pos = 0; setBlur(0);
+    reelHint.hidden = false;
+    resultPlate.classList.remove("show");
+    burst.classList.remove("show");
+  }
+
+  // 出たカードの記録を消して 新しい回にする
+  function newRound(){
+    clearDrawn();
+    paintRemain();
+    save();
+  }
+
+  // 「はじめから」ボタン
+  function reset(){
+    clearDisplay();
+    newRound();
+  }
+
+  /* ================= 音 ================= */
+  var audio = null, clip = null, cardSnd = null, sfx = {};
+  function initAudio(){
+    if(!audio){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audio = new AC();
+    }
+    if(audio && audio.state === "suspended") audio.resume();
+    loadSfx(START_SOUND);
+    loadSfx(STOP_SOUND);
+  }
+  function loadSfx(src){
+    if(!sfx[src]){
+      sfx[src] = new Audio(src);
+      sfx[src].preload = "auto";
+    }
+    return sfx[src];
+  }
+  // 効果音を鳴らす（同じ音を続けて押せるように頭へ戻す）
+  function playSfx(src){
+    if(!soundOn) return;
+    try{
+      var a = loadSfx(src);
+      a.currentTime = 0;
+      var p = a.play();
+      if(p && p.catch) p.catch(function(){ /* 自動再生が止められた場合は鳴らさない */ });
+    }catch(e){ /* 音が使えない環境 */ }
+  }
+  function beep(freq, dur, type, delay, vol){
+    if(!soundOn || !audio) return;
+    var t = audio.currentTime + (delay || 0);
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || .12, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t); o.stop(t + dur + .02);
+  }
+  /* 回転中のカチカチ音。mp3 の効果音と釣り合うよう、はっきり鳴らす。
+     大きさは下の 0.26 を上げ下げすると変わります（0〜1）。 */
+  function clack(){
+    beep(620, .045, "square", 0,     .26);
+    beep(310, .05,  "triangle", 0,   .16);   // 低い音を重ねて 厚みを出す
+  }
+
+  /* ---------- カードごとの音 ----------
+     踏切が出たときの「カンカンカン」。音のファイルを用意しなくても鳴るよう、
+     鐘をその場で作って鳴らす。2つの高さを かわりばんこに打つ。 */
+  function bellStrike(freq, at){
+    [[1, "triangle", .30], [2.76, "square", .10]].forEach(function(h){
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = h[1];
+      o.frequency.value = freq * h[0];
+      g.gain.setValueAtTime(.0001, at);
+      g.gain.exponentialRampToValueAtTime(h[2], at + .006);   // 鋭く立ち上げて
+      g.gain.exponentialRampToValueAtTime(.0001, at + .30);   // すっと消す
+      o.connect(g).connect(audio.destination);
+      o.start(at); o.stop(at + .32);
+    });
+  }
+  function crossingBell(){
+    if(!soundOn || !audio) return 0;
+    var step = .26, times = 10;                 // だいたい 2.6秒
+    var t0 = audio.currentTime + .02;
+    for(var i = 0; i < times; i++) bellStrike(i % 2 ? 585 : 700, t0 + i * step);
+    return step * times;
+  }
+
+  /* そのカードに音が決まっていれば鳴らし、鳴りおわったら done を呼ぶ。
+     音が無いカードは すぐ done。 */
+  function playCardSound(item, done){
+    var src = item && item.sound;
+    if(!soundOn || !src){ done(); return; }
+    if(src === "crossing"){
+      var sec = crossingBell();
+      setTimeout(done, Math.round(sec * 1000) + 150);
+      return;
+    }
+    try{
+      var a = new Audio(src);
+      var fired = false;
+      var fin = function(){ if(fired) return; fired = true; done(); };
+      a.addEventListener("ended", fin);
+      a.addEventListener("error", fin);        // ファイルが無ければ そのまま次へ
+      setTimeout(fin, 8000);                   // 念のための打ち切り
+      cardSnd = a;
+      var p = a.play();
+      if(p && p.catch) p.catch(fin);
+    }catch(e){ done(); }
+  }
+
+  function jaVoices(){
+    if(!window.speechSynthesis) return [];
+    return speechSynthesis.getVoices().filter(function(v){
+      return /^ja(-|_|$)/i.test(v.lang || "");
+    });
+  }
+  function bestVoice(){
+    var list = jaVoices();
+    if(!list.length) return null;
+    if(voiceURI){
+      for(var i = 0; i < list.length; i++) if(list[i].voiceURI === voiceURI) return list[i];
+    }
+    var score = function(v){
+      var n = (v.name || "") + " " + (v.voiceURI || "");
+      if(/natural/i.test(n)) return 4;
+      if(/online/i.test(n))  return 3;
+      if(/google/i.test(n))  return 2;
+      if(/nanami|keita|ayumi|ichiro|haruka/i.test(n)) return 1;
+      return 0;
+    };
+    return list.slice().sort(function(a,b){ return score(b) - score(a); })[0];
+  }
+
+  /* 読み上げ。<声のフォルダ>/<名前>.mp3 があればそれを鳴らし、
+     無ければブラウザの音声合成にまかせる。 */
+  function say(item){
+    if(!soundOn) return;
+    shutUp();
+    var text = (item.yomi || item.name) + "。" + (item.action || "");
+    var src = voiceFolder() + encodeURIComponent(item.name) + ".mp3";
+    /* 録音が無いときは error と play() の失敗が両方おきる。
+       どちらか先に来たほうだけで 読み上げる（二重に読まないように）。 */
+    var fellBack = false;
+    var fallback = function(){
+      if(fellBack) return;
+      fellBack = true;
+      speak(text);
+    };
+    clip = new Audio(src);
+    clip.addEventListener("error", fallback);
+    var p = clip.play();
+    if(p && p.catch) p.catch(fallback);
+  }
+  function speak(text){
+    if(!soundOn || !window.speechSynthesis) return;
+    try{
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      var v = bestVoice();
+      if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = "ja-JP"; }
+      u.rate = .95; u.pitch = 1.05;
+      speechSynthesis.speak(u);
+    }catch(e){ /* 読み上げ非対応 */ }
+  }
+  function shutUp(){
+    try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+    if(clip){ try{ clip.pause(); }catch(e){} clip = null; }
+    if(cardSnd){ try{ cardSnd.pause(); }catch(e){} cardSnd = null; }
+  }
+
+  function confetti(){
+    for(var i = 0; i < 20; i++){
+      (function(n){
+        var el = document.createElement("div");
+        el.className = "conf";
+        el.style.background = CONF_COLORS[n % CONF_COLORS.length];
+        el.style.left = (Math.random()*94) + "vw";
+        el.style.animationDuration = (1.5 + Math.random()*1.2) + "s";
+        el.style.animationDelay = (Math.random()*.5) + "s";
+        fx.appendChild(el);
+        var kill = function(){ el.remove(); };
+        el.addEventListener("animationend", kill);
+        setTimeout(kill, 4000);   // 視差効果オフ時は animationend が来ない
+      })(i);
+    }
+  }
+
+  /* ================= 設定の保存 ================= */
+  function save(){
+    try{
+      localStorage.setItem("hyoushiki-roulette", JSON.stringify({
+        setId: curSet().id, enabledBySet: enabledBySet,
+        speedKey: speedKey, soundOn: soundOn, voiceURI: voiceURI,
+        noRepeat: noRepeat, drawn: drawn,
+        titleLines: titleLines, startLabel: startLabel
+      }));
+    }catch(e){ /* file:// などで使えない場合は保存しない */ }
+  }
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem("hyoushiki-roulette") || "null");
+      if(!s) return;
+      if(s.enabledBySet && typeof s.enabledBySet === "object") enabledBySet = s.enabledBySet;
+      // 以前の版（セットが1つだけだった頃）の保存もひきつぐ
+      else if(Array.isArray(s.enabled)) enabledBySet[SETS[0].id] = s.enabled;
+      if(s.setId){
+        for(var i = 0; i < SETS.length; i++) if(SETS[i].id === s.setId){ setIdx = i; break; }
+      }
+      if(s.speedKey && SPEEDS[s.speedKey]) speedKey = s.speedKey;
+      if(typeof s.soundOn === "boolean") soundOn = s.soundOn;
+      if(typeof s.voiceURI === "string") voiceURI = s.voiceURI;
+      if(typeof s.noRepeat === "boolean") noRepeat = s.noRepeat;
+      if(Array.isArray(s.titleLines)){
+        titleLines = [String(s.titleLines[0] || ""), String(s.titleLines[1] || "")];
+      }
+      if(typeof s.startLabel === "string") startLabel = s.startLabel;
+      // 出たカードの記録も覚えておく。とちゅうで開きなおしても 回が続くように。
+      if(s.drawn && typeof s.drawn === "object"){
+        Object.keys(s.drawn).forEach(function(k){
+          if(Array.isArray(s.drawn[k])){
+            drawn[k] = s.drawn[k].filter(function(v){ return typeof v === "number" && v >= 0; });
+          }
+        });
+      }
+    }catch(e){ /* 壊れた設定は無視 */ }
+  }
+
+  /* ================= 設定画面 ================= */
+  function buildSetList(){
+    setList.innerHTML = "";
+    SETS.forEach(function(s, i){
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "setCard" + (i === setIdx ? " on" : "");
+      card.setAttribute("aria-pressed", i === setIdx ? "true" : "false");
+
+      var thumbs = document.createElement("div");
+      thumbs.className = "thumbs";
+      (s.items || []).slice(0, 3).forEach(function(it){
+        var im = document.createElement("img");
+        im.src = itemSrc(s, it);
+        im.alt = "";
+        thumbs.appendChild(im);
+      });
+
+      var info = document.createElement("div");
+      info.className = "info";
+      var nm = document.createElement("span");
+      nm.className = "nm"; nm.textContent = s.name || s.id;
+      var cnt = document.createElement("span");
+      cnt.className = "cnt"; cnt.textContent = (s.items || []).length + "まい";
+      info.appendChild(nm); info.appendChild(cnt);
+
+      card.appendChild(thumbs); card.appendChild(info);
+      card.addEventListener("click", function(){
+        if(i === setIdx) return;
+        setIdx = i;
+        applySet();
+        buildSetList(); buildGrid();
+        save();
+      });
+      setList.appendChild(card);
+    });
+  }
+
+  function buildGrid(){
+    signGrid.innerHTML = "";
+    items().forEach(function(s, i){
+      var on = enabled.indexOf(i) !== -1;
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "signItem" + (on ? " on" : "");
+      item.setAttribute("aria-pressed", on ? "true" : "false");
+      var img = document.createElement("img");
+      img.src = srcOf(s); img.alt = "";
+      var nm = document.createElement("div");
+      nm.className = "nm"; nm.textContent = s.name;
+      var mk = document.createElement("div");
+      mk.className = "mark";
+      item.appendChild(img); item.appendChild(nm); item.appendChild(mk);
+      item.addEventListener("click", function(){
+        var idx = enabled.indexOf(i);
+        if(idx === -1){
+          enabled.push(i);
+          enabled.sort(function(a,b){ return a-b; });
+        }else{
+          if(enabled.length <= 1) return;   // 最低1つは残す
+          enabled.splice(idx, 1);
+        }
+        var nowOn = enabled.indexOf(i) !== -1;
+        item.classList.toggle("on", nowOn);
+        item.setAttribute("aria-pressed", nowOn ? "true" : "false");
+        paintRemain();
+        save();
+      });
+      signGrid.appendChild(item);
+    });
+  }
+  function paintSpeed(){
+    [].forEach.call(document.querySelectorAll("#speedChips .chip"), function(c){
+      c.classList.toggle("on", c.dataset.key === speedKey);
+    });
+  }
+  function paintRepeat(){
+    [].forEach.call(document.querySelectorAll("#repeatChips .chip"), function(c){
+      c.classList.toggle("on", (c.dataset.key === "once") === noRepeat);
+    });
+  }
+  function paintSound(){
+    btnSound.classList.toggle("off", !soundOn);
+    soundState.textContent = soundOn ? "音 ON" : "音 OFF";
+  }
+  function paintVoices(){
+    var list = jaVoices();
+    voiceSel.innerHTML = "";
+    if(!list.length){
+      var o = document.createElement("option");
+      o.textContent = "（日本語の声が見つかりません）";
+      voiceSel.appendChild(o);
+      voiceSel.disabled = true;
+      return;
+    }
+    voiceSel.disabled = false;
+    var auto = document.createElement("option");
+    auto.value = ""; auto.textContent = "おまかせ（いちばん なめらかな声）";
+    voiceSel.appendChild(auto);
+    list.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v.voiceURI; o.textContent = v.name;
+      voiceSel.appendChild(o);
+    });
+    voiceSel.value = voiceURI;
+  }
+  /* ================= セットをつくる ================= */
+  var editing = null;              // 編集中のセット（保存するまで本体には触らない）
+
+  function blankCard(){ return { name:"", yomi:"", action:"", img:"" }; }
+  function editMsg(t){ $("editMsg").textContent = t || ""; }
+
+  // えらんだ絵を 小さくして data URL にする（そのままだと保存に入りきらない）
+  function shrinkImage(file, cb){
+    var fr = new FileReader();
+    fr.onerror = function(){ cb(null); };
+    fr.onload = function(){
+      var im = new Image();
+      im.onerror = function(){ cb(null); };
+      im.onload = function(){
+        var max = 420;
+        var k = Math.min(1, max / Math.max(im.width, im.height));
+        var w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
+        var c = document.createElement("canvas"); c.width = w; c.height = h;
+        c.getContext("2d").drawImage(im, 0, 0, w, h);
+        var png = c.toDataURL("image/png");
+        if(png.length > 200000){          // 大きすぎるときは白地の JPEG にする
+          var c2 = document.createElement("canvas"); c2.width = w; c2.height = h;
+          var g2 = c2.getContext("2d");
+          g2.fillStyle = "#fff"; g2.fillRect(0, 0, w, h);
+          g2.drawImage(im, 0, 0, w, h);
+          var jpg = c2.toDataURL("image/jpeg", 0.85);
+          cb(jpg.length < png.length ? jpg : png);
+        }else cb(png);
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
+  function buildCardEditor(){
+    var box = $("cardEditList");
+    box.innerHTML = "";
+    editing.items.forEach(function(card, idx){
+      var row = document.createElement("div");
+      row.className = "cardEdit";
+
+      /* sets.js に もとから書いてあるカードは 絵がファイルなので差し替えない
+         （文字だけ直す）。あとから足したカードと、作ったセットは 絵もえらべる。 */
+      var fixed = editing.builtin && idx < editing.rawLen;
+      var pic = document.createElement(fixed ? "div" : "label");
+      pic.className = "pic";
+      if(fixed) pic.style.cursor = "default";
+      var shown = card.img || card.src;
+      if(shown){
+        var im = document.createElement("img"); im.src = shown; im.alt = "";
+        pic.appendChild(im);
+      }else{
+        var sp = document.createElement("span"); sp.textContent = "絵を えらぶ";
+        pic.appendChild(sp);
+      }
+      if(!fixed){
+        var fileIn = document.createElement("input");
+        fileIn.type = "file"; fileIn.accept = "image/*"; fileIn.hidden = true;
+        pic.appendChild(fileIn);
+        fileIn.addEventListener("change", function(){
+          var f = fileIn.files && fileIn.files[0];
+          if(!f) return;
+          editMsg("絵を よみこんでいます…");
+          shrinkImage(f, function(url){
+            if(!url){ editMsg("この絵は よみこめませんでした"); return; }
+            card.img = url; editMsg(""); buildCardEditor();
+          });
+        });
+      }
+
+      var fields = document.createElement("div");
+      fields.className = "fields";
+      [["name","名前（例 いぬ）"],["yomi","よみ（例 いぬ）"],["action","やること（例 ワンワン と なく）"]]
+        .forEach(function(pair){
+          var inp = document.createElement("input");
+          inp.type = "text"; inp.placeholder = pair[1];
+          inp.value = card[pair[0]] || "";
+          inp.addEventListener("input", function(){ card[pair[0]] = inp.value; });
+          fields.appendChild(inp);
+        });
+
+      row.appendChild(pic); row.appendChild(fields);
+      if(!fixed){                           // もとからのカードは 消せない
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "del"; del.textContent = "消す";
+        del.addEventListener("click", function(){
+          editing.items.splice(idx, 1);
+          if(!editing.items.length) editing.items.push(blankCard());
+          buildCardEditor();
+        });
+        row.appendChild(del);
+      }
+      box.appendChild(row);
+    });
+  }
+
+  function openEditor(src){
+    var builtin = !!(src && isBuiltin(src.id));
+    // sets.js に もとから書いてあるカードの枚数（ここまでは絵を差し替えられない）
+    var rawLen = 0;
+    if(builtin){
+      for(var b = 0; b < BUILTIN_RAW.length; b++)
+        if(BUILTIN_RAW[b].id === src.id) rawLen = (BUILTIN_RAW[b].items || []).length;
+    }
+    editing = src
+      ? { id: src.id, name: src.name, builtin: builtin, rawLen: rawLen,
+          items: src.items.map(function(c){
+            return { name:c.name||"", yomi:c.yomi||"", action:c.action||"",
+                     img:c.img||"", src: itemSrc(src, c) }; }) }
+      : { id:"", name:"", builtin:false, rawLen:0, items:[blankCard()] };
+    if(!editing.items.length) editing.items = [blankCard()];
+    $("editTitle").textContent = src
+      ? (builtin ? "セットを なおす" : "セットを なおす")
+      : "セットを つくる";
+    $("inSetName").value = editing.name;
+    $("btnAddCard").hidden = false;
+    $("btnDeleteSet").hidden = !src;
+    $("btnDeleteSet").textContent = builtin ? "もとの じょうたいに もどす" : "この セットを 消す";
+    // もどすのは ひかえめな操作、消すのは 取り返しがつかない操作
+    $("btnDeleteSet").className = builtin ? "miniBtn few" : "miniBtn danger";
+    $("editNote").textContent = builtin
+      ? "もとから入っている " + rawLen + "まいは、絵はそのままで 文字だけ 直せます。" +
+        "「＋ カードを ふやす」で 絵から あたらしいカードを 足せます（足したカードは 消せます）。" +
+        "名前を かえたときは、録音した声のファイル名も 合わせてください。"
+      : "カードを 1まい以上 入れてください。絵をえらぶと 小さくしてから保存します。";
+    editMsg("");
+    buildCardEditor();
+    settingsScreen.hidden = true;
+    playScreen.hidden = true;
+    editScreen.hidden = false;
+  }
+  function closeEditor(){
+    editing = null;
+    editScreen.hidden = true;
+  }
+
+  function saveEditing(){
+    var name = ($("inSetName").value || "").trim();
+    if(!name){ editMsg("セットの名前を 入れてください。"); return; }
+
+    /* sets.js のセットは 文字だけ覚える（ファイルは書きかえられないため） */
+    if(editing.builtin){
+      var raw = null;
+      for(var b = 0; b < BUILTIN_RAW.length; b++) if(BUILTIN_RAW[b].id === editing.id) raw = BUILTIN_RAW[b];
+      if(!raw){ editMsg("もとの セットが 見つかりませんでした。"); return; }
+      var rawLen = editing.rawLen;
+      var orig = editing.items.slice(0, rawLen);
+      // 足したカードは 絵と名前が そろっているものだけ残す
+      var extra = editing.items.slice(rawLen).filter(function(c){
+        return c.img && (c.name || "").trim();
+      });
+      var emptyName = orig.filter(function(c){ return !(c.name || "").trim(); }).length;
+      if(emptyName){ editMsg("名前が 空のカードが あります。"); return; }
+
+      var ovr = { items: {} };
+      if(name !== raw.name) ovr.name = name;
+      orig.forEach(function(c, i){
+        var o0 = raw.items[i] || {}, diff = {};
+        if(c.name.trim()   !== (o0.name   || "")) diff.name   = c.name.trim();
+        if(c.yomi.trim()   !== (o0.yomi   || "")) diff.yomi   = c.yomi.trim();
+        if(c.action.trim() !== (o0.action || "")) diff.action = c.action.trim();
+        if(Object.keys(diff).length) ovr.items[i] = diff;
+      });
+      if(extra.length) ovr.extra = extra.map(function(c){
+        return { name:c.name.trim(), yomi:(c.yomi||"").trim(),
+                 action:(c.action||"").trim(), img:c.img };
+      });
+
+      var keepOvr = overrides[editing.id];
+      var oldLen = (curSetById(editing.id) || { items:[] }).items.length;
+      if(ovr.name === undefined && !Object.keys(ovr.items).length && !ovr.extra)
+        delete overrides[editing.id];
+      else overrides[editing.id] = ovr;
+      try{
+        saveOverrides();
+      }catch(e){
+        if(keepOvr) overrides[editing.id] = keepOvr; else delete overrides[editing.id];
+        editMsg("保存できませんでした。足す絵の枚数を へらすか、小さい絵に してみてください。");
+        return;
+      }
+      rebuildSets(editing.id);
+      reconcile(editing.id, oldLen, rawLen + extra.length);
+      applySet(); save();
+      closeEditor(); openSettings();
+      return;
+    }
+
+    var cards = editing.items.filter(function(c){ return c.img && (c.name || "").trim(); });
+    if(!cards.length){ editMsg("絵と 名前が そろったカードが 1まいも ありません。"); return; }
+    var id = editing.id || ("u" + Date.now().toString(36));
+    var obj = { id:id, name:name, items: cards.map(function(c){
+      return { name:c.name.trim(), yomi:(c.yomi||"").trim(),
+               action:(c.action||"").trim(), img:c.img };
+    })};
+    var at = -1;
+    for(var i = 0; i < userSets.length; i++) if(userSets[i].id === id){ at = i; break; }
+    var backup = userSets.slice();
+    var oldLen = (curSetById(id) || { items:[] }).items.length;
+    if(at >= 0) userSets[at] = obj; else userSets.push(obj);
+    try{
+      saveUserSets();
+    }catch(e){
+      userSets = backup;
+      editMsg("保存できませんでした。絵の枚数を へらすか、小さい絵に してみてください。");
+      return;
+    }
+    rebuildSets(id);
+    reconcile(id, oldLen, obj.items.length);
+    applySet();
+    save();
+    closeEditor();
+    openSettings();
+  }
+
+  function deleteEditing(){
+    if(!editing || !editing.id) return;
+    // sets.js のセットは消せない。なおしたところを捨てて もとに戻す
+    if(editing.builtin){
+      var wasLen = (curSetById(editing.id) || { items:[] }).items.length;
+      delete overrides[editing.id];
+      try{ saveOverrides(); }catch(e){}
+      rebuildSets(editing.id);
+      reconcile(editing.id, wasLen, (curSetById(editing.id) || { items:[] }).items.length);
+      applySet(); save();
+      closeEditor(); openSettings();
+      return;
+    }
+    var gone = editing.id, keep = curSet().id === gone ? null : curSet().id;
+    userSets = userSets.filter(function(s){ return s.id !== gone; });
+    try{ saveUserSets(); }catch(e){ /* 消すだけなので入りきらないことはない */ }
+    delete enabledBySet[gone];
+    delete drawn[gone];
+    rebuildSets(keep);
+    applySet();
+    save();
+    closeEditor();
+    openSettings();
+  }
+
+  // もとから入っているセットと、作ったセットを ならべて出す
+  function buildUserSetList(){
+    var box = $("userSetList");
+    box.innerHTML = "";
+    SETS.forEach(function(s){
+      var builtin = isBuiltin(s.id);
+      var row = document.createElement("div");
+      row.className = "userSetRow";
+
+      var thumbs = document.createElement("div");
+      thumbs.className = "thumbs";
+      (s.items || []).slice(0, 4).forEach(function(it){
+        var im = document.createElement("img"); im.src = itemSrc(s, it); im.alt = "";
+        thumbs.appendChild(im);
+      });
+
+      var info = document.createElement("div");
+      var nm = document.createElement("div");
+      nm.className = "nm"; nm.textContent = s.name;
+      var cnt = document.createElement("div");
+      cnt.className = "cnt";
+      cnt.textContent = (s.items || []).length + "まい"
+        + (builtin ? "・もとから" : "・つくったもの")
+        + (overrides[s.id] ? "（なおしてあります）" : "");
+      info.appendChild(nm); info.appendChild(cnt);
+
+      var sp = document.createElement("span"); sp.className = "spacer";
+      var ed = document.createElement("button");
+      ed.type = "button"; ed.className = "miniBtn all";
+      ed.textContent = "なおす";
+      ed.addEventListener("click", function(){ openEditor(s); });
+
+      row.appendChild(thumbs); row.appendChild(info); row.appendChild(sp); row.appendChild(ed);
+      box.appendChild(row);
+    });
+  }
+
+  var EXPORT_NAME = "slot-challenge-sets.json";
+
+  function exportSets(){
+    if(!userSets.length){ alert("書き出す セットが ありません。"); return; }
+    var text = JSON.stringify(userSets, null, 1);
+
+    /* ネットに置いた版では ふつうの保存リンクが はたらかないので、
+       用意されている 保存のしくみを つかう。
+       index.html を そのまま ひらいたときは window.claude が無いので下へ。 */
+    if(window.claude && typeof window.claude.use === "function"){
+      window.claude.use("downloads").then(function(d){
+        if(!d){ alert("この がめんでは 書き出せません。"); return; }
+        return d.save({ filename: EXPORT_NAME, data: text });
+      }).catch(function(e){
+        if(e && e.code === "declined") return;        // やめた ときは だまって終わる
+        alert("書き出せませんでした。");
+      });
+      return;
+    }
+    saveByLink(text);
+  }
+
+  function saveByLink(text){
+    var blob = new Blob([text], { type:"application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = EXPORT_NAME;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+  }
+
+  function importSets(file){
+    var fr = new FileReader();
+    fr.onerror = function(){ alert("ファイルを よみこめませんでした。"); };
+    fr.onload = function(){
+      var list;
+      try{ list = JSON.parse(fr.result); }
+      catch(e){ alert("このファイルは セットの ファイルでは ないようです。"); return; }
+      if(!Array.isArray(list)){ alert("このファイルは セットの ファイルでは ないようです。"); return; }
+      var ok = list.filter(function(s){
+        return s && s.id && s.name && Array.isArray(s.items) && s.items.length;
+      });
+      if(!ok.length){ alert("使える セットが 入っていませんでした。"); return; }
+      var backup = userSets.slice();
+      ok.forEach(function(s){
+        var at = -1;
+        for(var i = 0; i < userSets.length; i++) if(userSets[i].id === s.id){ at = i; break; }
+        if(at >= 0) userSets[at] = s; else userSets.push(s);
+      });
+      try{ saveUserSets(); }
+      catch(e){
+        userSets = backup;
+        alert("保存できませんでした。セットの数を へらしてから もう一度 お試しください。");
+        return;
+      }
+      rebuildSets(curSet().id);
+      applySet(); save();
+      buildUserSetList(); buildSetList();
+      alert(ok.length + "この セットを よみこみました。");
+    };
+    fr.readAsText(file);
+  }
+
+  function openSettings(){
+    clearDisplay();                // 出たカードの記録は 消さない
+    buildSetList(); buildGrid(); paintSpeed(); paintRepeat(); paintSound(); paintVoices();
+    buildUserSetList(); paintTextFields();
+    editScreen.hidden = true;
+    playScreen.hidden = true;
+    settingsScreen.hidden = false;
+  }
+  function closeSettings(){
+    settingsScreen.hidden = true;
+    editScreen.hidden = true;
+    playScreen.hidden = false;
+    layout();
+  }
+  function paintTextFields(){
+    $("inTitle1").value = titleLines[0] || "";
+    $("inTitle2").value = titleLines[1] || "";
+    $("inStart").value  = startLabel || "";
+  }
+
+  /* ================= イベント ================= */
+  btnStart.addEventListener("click", spin);
+  $("btnReset").addEventListener("click", reset);
+  $("btnToSettings").addEventListener("click", openSettings);
+  $("btnBack").addEventListener("click", closeSettings);
+
+  reel.addEventListener("click", spin);
+  reel.addEventListener("keydown", function(e){
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); spin(); }
+  });
+  document.addEventListener("keydown", function(e){
+    if(playScreen.hidden) return;
+    if(e.target === reel) return;
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); spin(); }
+  });
+
+  [].forEach.call(document.querySelectorAll("#speedChips .chip"), function(c){
+    c.addEventListener("click", function(){
+      speedKey = c.dataset.key; paintSpeed(); save();
+    });
+  });
+  // 絵の上の文字
+  function textChanged(){
+    titleLines = [$("inTitle1").value, $("inTitle2").value];
+    startLabel = $("inStart").value;
+    paintTitle(); paintStartText(); save();
+  }
+  ["inTitle1","inTitle2","inStart"].forEach(function(id){
+    $(id).addEventListener("input", textChanged);
+  });
+  $("btnTextDefault").addEventListener("click", function(){
+    titleLines = DEFAULT_TITLE_LINES.slice();
+    startLabel = DEFAULT_START;
+    paintTextFields(); paintTitle(); paintStartText(); save();
+  });
+
+  // セットをつくる
+  $("btnNewSet").addEventListener("click", function(){ openEditor(null); });
+  $("btnSaveSet").addEventListener("click", saveEditing);
+  $("btnDeleteSet").addEventListener("click", deleteEditing);
+  $("btnAddCard").addEventListener("click", function(){
+    editing.items.push(blankCard());
+    buildCardEditor();
+  });
+  $("btnEditBack").addEventListener("click", function(){ closeEditor(); openSettings(); });
+  $("btnExportSets").addEventListener("click", exportSets);
+  $("btnImportSets").addEventListener("click", function(){ $("fileImport").click(); });
+  $("fileImport").addEventListener("change", function(){
+    var f = this.files && this.files[0];
+    if(f) importSets(f);
+    this.value = "";
+  });
+
+  $("btnNewRound").addEventListener("click", newRound);
+  [].forEach.call(document.querySelectorAll("#repeatChips .chip"), function(c){
+    c.addEventListener("click", function(){
+      noRepeat = (c.dataset.key === "once");
+      newRound();                  // 切りかえたら 新しい回から
+      paintRepeat();
+    });
+  });
+  btnSound.addEventListener("click", function(){
+    soundOn = !soundOn;
+    if(!soundOn) shutUp(); else initAudio();
+    paintSound(); save();
+  });
+  voiceSel.addEventListener("change", function(){
+    voiceURI = voiceSel.value; save();
+  });
+  $("btnTestVoice").addEventListener("click", function(){
+    initAudio();
+    var on = soundOn; soundOn = true;          // 試聴は音OFFでも鳴らす
+    var first = items()[enabled.length ? enabled[0] : 0];
+    speak(first ? ((first.yomi || first.name) + "。" + (first.action || "")) : "こんにちは");
+    soundOn = on;
+  });
+  $("selAll").addEventListener("click", function(){
+    var n = items().length, list = [];
+    for(var i = 0; i < n; i++) list.push(i);
+    enabledBySet[curSet().id] = list; enabled = list;
+    buildGrid(); paintRemain(); save();
+  });
+  $("selFew").addEventListener("click", function(){
+    var list = [enabled.length ? enabled[0] : 0];
+    enabledBySet[curSet().id] = list; enabled = list;
+    buildGrid(); paintRemain(); save();
+  });
+
+  if(window.speechSynthesis){
+    speechSynthesis.addEventListener("voiceschanged", function(){
+      if(!settingsScreen.hidden) paintVoices();
+    });
+  }
+
+  /* 何か思わぬ不具合が起きても、遊べない状態のままにしない。
+     スタートが押せないまま固まっていたら 見た目を戻す。 */
+  window.addEventListener("error", function(){
+    try{ if(spinning || btnStart.disabled) clearDisplay(); }catch(e){}
+  });
+
+  userSets = loadUserSets();
+  overrides = loadOverrides();
+  rebuildSets(null);            // sets.js のぶん＋作ったぶんを つなげる
+  load();                       // この中で 保存されていたセットが選ばれる
+  paintStartText();
+  applySet();
+  layout();
+})();
+</script>
+</body>
+</html>
