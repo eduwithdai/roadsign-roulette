@@ -16,7 +16,6 @@ const cp = (from, to) => fs.copyFileSync(path.join(SRC, from), path.join(OUT, to
 /* app-icon は <link rel=icon> ごと外すので 要らない */
 ["arrow-left.png","btn-start-blank.png","machine.png",
  "plate.png","sparkle.png","title-blank.png"].forEach(f => cp("assets/"+f, "assets/"+f));
-cp("assets/\u80cc\u666f.png", "assets/bg.png");
 const pick = (dir, needle) => {
   const hit = fs.readdirSync(path.join(SRC, dir)).filter(f => f.includes(needle));
   if (hit.length !== 1) throw new Error(dir + " で " + needle + " が " + hit.length + " 件");
@@ -27,7 +26,8 @@ const pick = (dir, needle) => {
 const soundMap = {};                      // 決定ボタンを押す42.mp3 → start.mp3
 [["スタート", "start.mp3"],
  ["とまった", "stop.mp3"],
- ["踏切",     "crossing.mp3"]
+ ["踏切",     "crossing.mp3"],
+ ["工事中",   "work.mp3"]
 ].forEach(([needle, en]) => {
   const rel = pick("sound", needle);       // "sound/○○.mp3"
   cp(rel, "sound/" + en);
@@ -72,7 +72,6 @@ fs.writeFileSync(path.join(OUT, "sets.js"), sets);
 
 /* ---- index.html ---- */
 let html = fs.readFileSync(path.join(SRC, "index.html"), "utf8");
-html = html.replace('assets/背景.png', 'assets/bg.png');
 html = fixSounds(html, "index.html");
 
 const lines = html.split(/\r?\n/);

@@ -12,8 +12,11 @@
     --blue:#197eef;
     --red:#e21010;
     --yellow:#fcd402;
-    --sky:#0da5fe;
     --paper:#fdfdfd;
+    /* あそぶ画面の下地。道路のような はいいろ */
+    --road:#6f757e;
+    --roadMid:#5d636c;
+    --roadDark:#4b5059;
     --cloud:#eef4ff;      /* 画面の下地（青みのある白） */
     --ink2:#3b4a6b;       /* 説明文の色 */
     --line:#bcccea;       /* 枠線のうすい色 */
@@ -22,7 +25,17 @@
   html,body{
     margin:0;padding:0;width:100%;height:100%;
     overflow:hidden;
-    background:var(--sky) url("assets/背景.png") center center / cover no-repeat fixed;
+    /* 道路の見た目。かさねる順に
+         ①左右のはしの白線 ②アスファルトのざらつき ③灰色のグラデーション */
+    background:
+      linear-gradient(90deg,
+        transparent 0 5.2%, rgba(255,255,255,.30) 5.2% 6.0%,
+        transparent 6.0% 94.0%, rgba(255,255,255,.30) 94.0% 94.8%,
+        transparent 94.8% 100%),
+      repeating-linear-gradient(112deg,
+        rgba(255,255,255,.022) 0 2px, rgba(0,0,0,.022) 2px 5px),
+      linear-gradient(180deg, var(--road) 0%, var(--roadMid) 46%, var(--roadDark) 100%);
+    background-attachment:fixed;
     color:var(--navy);
     font-family:"Yu Gothic Rounded","Hiragino Maru Gothic ProN","M PLUS Rounded 1c","Meiryo",sans-serif;
     user-select:none;
@@ -31,7 +44,8 @@
   .screen[hidden]{display:none;}
 
   /* ============ あそぶ画面 ============ */
-  #playScreen{padding:1vmin;}
+  /* 余白なし。抽選機が 上から下まで 使えるように */
+  #playScreen{padding:0;}
 
   /* 先生用の小さなボタン（子どもが誤って押しにくい隅） */
   .corner{position:absolute;top:1.2vmin;right:1.2vmin;display:flex;gap:1.2vmin;z-index:30;}
@@ -162,11 +176,11 @@
   .controls{flex:0 0 auto;display:flex;align-items:center;justify-content:center;z-index:1;}
   .bigBtn{
     background:none;border:none;padding:0;cursor:pointer;display:block;line-height:0;
-    transition:transform .08s ease, filter .2s ease;
-    filter:drop-shadow(0 1vmin 1vmin rgba(4,26,82,.34));
+    transition:transform .07s ease-out, filter .07s ease-out;
+    /* 浮いて見えるように 影を下に落とす。押すと この影が小さくなる */
+    filter:drop-shadow(0 1.6vmin 1.1vmin rgba(0,0,0,.42));
   }
   .bigBtn img{display:block;width:100%;height:auto;}
-  .bigBtn:active{transform:translateY(1vmin) scale(.97);}
   .bigBtn:disabled{filter:grayscale(.7) opacity(.45);cursor:default;}
   .bigBtn:focus-visible{outline:.5vmin solid var(--navy);outline-offset:.8vmin;border-radius:50%;}
   .bigBtn.pulse:not(:disabled){animation:btnPulse 1.5s ease-in-out infinite;}
@@ -175,15 +189,26 @@
     50%{transform:scale(1.07);}
   }
 
+  /* 押したところ：下にしずんで つぶれ、影が小さくなる＝へこんで見える。
+     .pressed は 指をはなしたあとも 少しのあいだ 付けておく
+     （押したとたんにボタンが disabled になるので :active だけでは 一瞬しか出ない）。
+     ゆれるアニメーション（.pulse）に 打ち勝つよう、この順番・この強さで書く。 */
+  .bigBtn:active:not(:disabled),
+  .bigBtn.pressed:not(:disabled){
+    animation:none;
+    transform:translateY(1.9vmin) scale(.95,.90);
+    filter:drop-shadow(0 .25vmin .3vmin rgba(0,0,0,.5));
+  }
+
   /* 横向き：題名と START を機械の右に縦積み（機械が高さをフルに使える） */
   @media (orientation:landscape){
     .playArea{flex-direction:row;}
     .titleTop{display:none;}
-    .side{flex-direction:column;gap:3vmin;width:min(26vw,300px);}
+    .side{flex-direction:column;gap:3vmin;width:min(31vw,360px);}
     .titleSide img{max-width:100%;max-height:24vh;}
     .titleSide .titlePlate{max-width:100%;font-size:clamp(15px,2.4vw,30px);}
     .controls{width:100%;}
-    .bigBtn{width:min(100%,190px);}
+    .bigBtn{width:min(100%,300px);}
   }
   /* 縦向き：題名は上、START は下 */
   @media (orientation:portrait){
@@ -192,7 +217,7 @@
     .titleTop{padding:.4vmin 0 1vmin;}
     .titleTop img{max-height:min(9vh,80px);max-width:76vw;}
     .titleTop .titlePlate{max-width:88vw;}
-    .side{height:min(19vh,150px);}
+    .side{height:min(24vh,200px);}
     .controls{height:100%;}
     .bigBtn{height:100%;}
     .bigBtn img{width:auto;height:100%;}
@@ -202,8 +227,10 @@
      高さを固定しておく。文字が入って帯が高くなると
      そのぶん機械が縮んでしまうため。 */
   .resultBar{
-    flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-    height:max(13vmin,60px);padding:0 1vmin;
+    position:absolute;left:-3%;right:-3%;bottom:1.5%;z-index:5;
+    display:flex;align-items:center;justify-content:center;
+    height:max(13vmin,60px);
+    pointer-events:none;
   }
   .plate{
     display:flex;align-items:center;justify-content:center;gap:2.4vmin;flex-wrap:wrap;
@@ -473,6 +500,14 @@
         <div class="reelHint" id="reelHint">スタートを<br>おしてね</div>
         <img class="burst" id="burst" src="assets/sparkle.png" alt="">
       </div>
+
+      <!-- 結果の帯。機械の下のトレイに かさねて出す -->
+      <div class="resultBar">
+        <div class="plate" id="resultPlate">
+          <span class="resultName" id="resultName"></span>
+          <span class="resultAction" id="resultAction"></span>
+        </div>
+      </div>
     </div>
 
     <div class="side" id="side">
@@ -486,12 +521,6 @@
     </div>
   </div>
 
-  <div class="resultBar">
-    <div class="plate" id="resultPlate">
-      <span class="resultName" id="resultName"></span>
-      <span class="resultAction" id="resultAction"></span>
-    </div>
-  </div>
 </div>
 
 <!-- ===== 設定画面（別画面） ===== -->
@@ -528,11 +557,11 @@
     <p class="note">看板と スタートボタンの 文字を 書きかえられます。空にすると 文字なしになります。</p>
     <div class="fieldRow">
       <label for="inTitle1">看板 1行目</label>
-      <input type="text" id="inTitle1" maxlength="20" placeholder="SLOT">
+      <input type="text" id="inTitle1" maxlength="20" placeholder="どうろ">
     </div>
     <div class="fieldRow">
       <label for="inTitle2">看板 2行目</label>
-      <input type="text" id="inTitle2" maxlength="20" placeholder="CHALLENGE">
+      <input type="text" id="inTitle2" maxlength="20" placeholder="ひょうしき">
     </div>
     <div class="fieldRow">
       <label for="inStart">ボタン</label>
@@ -675,7 +704,8 @@
   var SETS = [];
 
   var DEFAULT_TITLE = "assets/title-blank.png";  // 文字なしの看板（文字は上に重ねて描く）
-  var DEFAULT_TITLE_LINES = ["SLOT", "CHALLENGE"];
+  var DEFAULT_TITLE_LINES = ["どうろ", "ひょうしき"];
+  var OLD_TITLE_LINES     = ["SLOT", "CHALLENGE"];   // 前の初期値（下の load で入れかえる）
   var DEFAULT_START = "START";
   var START_SOUND = "sound/スタート.mp3";   // スタートを押したときの音
   var STOP_SOUND  = "sound/とまった.mp3";   // 止まったときの音
@@ -966,13 +996,29 @@
     var ps = getComputedStyle(playScreen);
     var innerW = playScreen.clientWidth  - num(ps.paddingLeft) - num(ps.paddingRight);
     // titleTop は横向きでは display:none なので offsetHeight が 0 になる
+    // 結果の帯は 下にかさねて置いてあるので 引かない（抽選機が上下いっぱいに使える）
     var innerH = playScreen.clientHeight - num(ps.paddingTop)  - num(ps.paddingBottom)
-                 - titleTop.offsetHeight - resultBar.offsetHeight;
+                 - titleTop.offsetHeight;
     var pa = getComputedStyle(playArea);
     var gap = num(pa.columnGap || pa.gap);
     var landscape = window.innerWidth >= window.innerHeight;
-    var availW = innerW - (landscape ? side.offsetWidth  + gap : 0);
-    var availH = innerH - (landscape ? 0 : side.offsetHeight + gap);
+    var availW, availH;
+    if(landscape){
+      /* 横向きは 抽選機が 上から下まで いっぱいになるようにする。
+         高さから決めた幅を先に確保し、のこりを 題名と START に回す。
+         のこりが せますぎるときだけ、機械のほうを小さくする。 */
+      var sideMin = 200;                // START を これより小さくはしない
+      var sideMax = Math.min(innerW * .31, 360);
+      var rest    = innerW - (MACHINE_W * (innerH / MACHINE_H)) - gap;
+      var sideW   = (rest >= sideMin) ? Math.min(rest, sideMax) : sideMin;
+      side.style.width = Math.floor(sideW) + "px";
+      availW = innerW - sideW - gap;
+      availH = innerH;
+    }else{
+      side.style.width = "";            // 縦向きは CSS にまかせる
+      availW = innerW;
+      availH = innerH - side.offsetHeight - gap;
+    }
     var scale = Math.min(availW / MACHINE_W, availH / MACHINE_H);
     if(!(scale > 0)) return;
     var w = Math.floor(MACHINE_W * scale);
@@ -1508,6 +1554,10 @@
       if(typeof s.noRepeat === "boolean") noRepeat = s.noRepeat;
       if(Array.isArray(s.titleLines)){
         titleLines = [String(s.titleLines[0] || ""), String(s.titleLines[1] || "")];
+        /* 前の初期値のまま使っていた場合は 新しい初期値に入れかえる。
+           自分で書きかえた文字は そのまま残す。 */
+        if(titleLines[0] === OLD_TITLE_LINES[0] && titleLines[1] === OLD_TITLE_LINES[1])
+          titleLines = DEFAULT_TITLE_LINES.slice();
       }
       if(typeof s.startLabel === "string") startLabel = s.startLabel;
       // 出たカードの記録も覚えておく。とちゅうで開きなおしても 回が続くように。
@@ -1987,6 +2037,25 @@
   }
 
   /* ================= イベント ================= */
+  /* 押した感じ。押したとたんに ボタンが使えなくなるので、
+     :active だけだと へこみが 一瞬で消えてしまう。
+     指をはなしても 少しのあいだ へこませておく。 */
+  var pressTimer = null;
+  function pressDown(){
+    if(btnStart.disabled) return;
+    btnStart.classList.add("pressed");
+    if(pressTimer) clearTimeout(pressTimer);
+    pressTimer = setTimeout(function(){
+      btnStart.classList.remove("pressed");
+      pressTimer = null;
+    }, 220);
+  }
+  btnStart.addEventListener("pointerdown", pressDown);
+  btnStart.addEventListener("keydown", function(e){
+    if(e.key === " " || e.key === "Enter") pressDown();
+  });
+  reel.addEventListener("pointerdown", pressDown);   // 画面を押しても 同じように
+
   btnStart.addEventListener("click", spin);
   $("btnReset").addEventListener("click", reset);
   $("btnToSettings").addEventListener("click", openSettings);

@@ -53,7 +53,8 @@ var SIGN_SETS = [
       { file:"横断禁止.webp",    name:"横断禁止",   yomi:"おうだんきんし",       action:"わたらずに まつ" },
       { file:"通行止め.webp",    name:"通行止め",   yomi:"つうこうどめ",         action:"うしろに もどる" },
       { file:"立ち入り禁止.jpg", name:"立入禁止",   yomi:"たちいりきんし",       action:"はいらない！" },
-      { file:"工事中.jpg",       name:"工事中",     yomi:"こうじちゅう",         action:"ゆっくり すすむ" },
+      { file:"工事中.jpg",       name:"工事中",     yomi:"こうじちゅう",         action:"ゆっくり すすむ",
+        sound:"sound/工事中.mp3" },   // 削岩機の音（約2.5秒）
       { file:"ふみきり.webp",    name:"踏切",       yomi:"ふみきり",             action:"みぎ ひだり を みる",
         sound:"sound/踏切.mp3" },   // 本物の踏切の音が鳴ります（約3.6秒）
       { file:"110番の家.gif",    name:"110番の家",  yomi:"ひゃくとおばんのいえ", action:"たすけて と いう" }
