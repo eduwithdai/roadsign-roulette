@@ -22,8 +22,27 @@ const pick = (dir, needle) => {
   if (hit.length !== 1) throw new Error(dir + " で " + needle + " が " + hit.length + " 件");
   return dir + "/" + hit[0];
 };
-cp(pick("sound", "ボタン"), "sound/start.mp3");          // 決定ボタンを押す42
-cp(pick("sound", "ドラム"), "sound/stop.mp3");           // スチールドラム02
+/* 実際に sound/ に入っているファイルだけを 半角名に置きかえる。
+   sets.js のコメントに出てくる「sound/なにか.mp3」のような 見本は そのまま。 */
+const soundMap = {};                      // 決定ボタンを押す42.mp3 → start.mp3
+[["ボタン", "start.mp3"],                  // 決定ボタンを押す42
+ ["ドラム", "stop.mp3"],                   // スチールドラム02
+ ["踏切",   "crossing.mp3"]                // 踏切
+].forEach(([needle, en]) => {
+  const rel = pick("sound", needle);       // "sound/○○.mp3"
+  cp(rel, "sound/" + en);
+  soundMap[rel.slice("sound/".length)] = en;
+});
+
+/* index.html と sets.js の どちらにも 音の名前が出てくるので 同じ関数でなおす。
+   日本語の綴りを直書きすると取りちがえるため、実ファイル名から 置きかえる。 */
+const fixSounds = (text, where) => {
+  let out = text;
+  for (const ja of Object.keys(soundMap)) out = out.split("sound/" + ja).join("sound/" + soundMap[ja]);
+  for (const ja of Object.keys(soundMap))
+    if (out.includes("sound/" + ja)) throw new Error("音の置換もれ: " + where + " / " + ja);
+  return out;
+};
 
 /* ---- カードの絵。日本語名 → 半角名 ---- */
 const SIGNS = [
@@ -48,18 +67,13 @@ sets = sets.replace('folder: "sets/\u3069\u3046\u308d\u3072\u3087\u3046\u3057\u3
 SIGNS.forEach(([ja, en]) => { sets = sets.split('file:"'+ja+'"').join('file:"'+en+'"'); });
 if (sets.includes("\u3069\u3046\u308d\u3072\u3087\u3046\u3057\u304d/")) throw new Error("folder 置換もれ");
 SIGNS.forEach(([ja]) => { if (sets.includes('file:"'+ja+'"')) throw new Error("file 置換もれ: "+ja); });
+sets = fixSounds(sets, "sets.js");
 fs.writeFileSync(path.join(OUT, "sets.js"), sets);
 
 /* ---- index.html ---- */
 let html = fs.readFileSync(path.join(SRC, "index.html"), "utf8");
 html = html.replace('assets/背景.png', 'assets/bg.png');
-/* 音のファイル名も 半角に。日本語の綴りを直書きすると取りちがえるので
-   sound/○○.mp3 を まとめて拾って、中身のことばで 振り分ける。 */
-html = html.replace(/sound\/[^"')]*\.mp3/g, m =>
-  m.includes("ボタン") ? "sound/start.mp3" :
-  m.includes("ドラム") ? "sound/stop.mp3" :
-  (() => { throw new Error("知らない音: " + m); })());
-if (/sound\/(?!start\.mp3|stop\.mp3)/.test(html)) throw new Error("音の置換もれ");
+html = fixSounds(html, "index.html");
 
 const lines = html.split(/\r?\n/);
 const head = lines.findIndex(l => /^<head>/.test(l));
