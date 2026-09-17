@@ -1312,7 +1312,13 @@
   }
 
   /* ================= 音 ================= */
-  var audio = null, clip = null, cardSnd = null, sfx = {};
+  var audio = null, sfx = {};
+  /* カードの音と 録音した声は、そのつど 新しく作らずに この2つを使い回す。
+     iPad は「指で触れたときに 一度でも鳴らした入れもの」しか
+     あとから自動で鳴らせないため（下の unlockAudio を見てください）。 */
+  var cardEl = null, voiceEl = null;
+  var unlocked = false;
+  var SILENT = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";   // 0.01秒の無音（ふたを開けるのに使う）
   /* 音を 順番につなぐ（止まった音 → 読み上げ → カードの音）ための番号。
      shutUp() で 増やす。途中で止めたときに つぎの音が鳴りださないように、
      待っている処理は 自分がとった番号と見くらべる。 */
@@ -1325,7 +1331,71 @@
     if(audio && audio.state === "suspended") audio.resume();
     loadSfx(START_SOUND);
     loadSfx(STOP_SOUND);
+    if(!cardEl)  cardEl  = new Audio();
+    if(!voiceEl) voiceEl = new Audio();
   }
+
+  /* iPad・iPhone の音のきまり
+     ------------------------------------------------------------
+     画面を指で触れた その場で鳴らした音だけが、あとから
+     ひとりでに 鳴らせるようになる。作っておいただけの入れものは、
+     あとで鳴らそうとしても だまって止められてしまう。
+     このアプリは スタートの音のあと、止まった音・カードの音・声を
+     時間をおいて鳴らすので、そのままでは スタート以外が鳴らなかった。
+
+     そこで 最初に画面を触った時点で、使う入れものを ぜんぶ
+     いちど無音で鳴らして「ふた」を開けておく。 */
+  function primeEl(a){
+    if(!a) return;
+    try{
+      a.__priming = true;
+      a.muted = true;
+      if(!a.getAttribute("src") && !a.src) a.src = SILENT;
+      var back = function(){
+        /* ふたを開けている最中に 本番の音が始まっていたら、止めない。
+           （素早く押したときに スタートの音が消えてしまわないように） */
+        if(!a.__priming){ a.muted = false; return; }
+        a.__priming = false;
+        try{ a.pause(); a.currentTime = 0; }catch(e){}
+        a.muted = false;
+      };
+      var p = a.play();
+      if(p && p.then) p.then(back, back); else back();
+    }catch(e){ a.__priming = false; a.muted = false; }
+  }
+  /* これから本番の音を鳴らす、という合図。ふた開けの後始末に じゃまされないようにする。 */
+  function claim(a){
+    if(a){ a.__priming = false; a.muted = false; }
+    return a;
+  }
+  function unlockAudio(){
+    if(unlocked) return;
+    unlocked = true;
+    initAudio();
+    // Web Audio（回転中のカチカチ音）のふた
+    if(audio){
+      try{
+        var src = audio.createBufferSource();
+        src.buffer = audio.createBuffer(1, 1, 22050);
+        src.connect(audio.destination);
+        src.start(0);
+      }catch(e){}
+    }
+    // mp3 の入れもののふた
+    primeEl(sfx[START_SOUND]); primeEl(sfx[STOP_SOUND]);
+    primeEl(cardEl); primeEl(voiceEl);
+    // 読み上げのふた（音のしない ひとことを 先に言わせておく）
+    try{
+      if(window.speechSynthesis){
+        var u = new SpeechSynthesisUtterance(" ");
+        u.volume = 0;
+        speechSynthesis.speak(u);
+      }
+    }catch(e){}
+  }
+  ["pointerdown", "touchend", "mousedown", "keydown"].forEach(function(ev){
+    document.addEventListener(ev, unlockAudio, { once:true, capture:true });
+  });
   function loadSfx(src){
     if(!sfx[src]){
       sfx[src] = new Audio(src);
@@ -1337,7 +1407,7 @@
   function playSfx(src){
     if(!soundOn) return;
     try{
-      var a = loadSfx(src);
+      var a = claim(loadSfx(src));
       a.currentTime = 0;
       var p = a.play();
       if(p && p.catch) p.catch(function(){ /* 自動再生が止められた場合は鳴らさない */ });
@@ -1356,7 +1426,7 @@
     };
     if(!soundOn){ fin(); return; }
     try{
-      var a = loadSfx(src);
+      var a = claim(loadSfx(src));
       var off = function(){ a.removeEventListener("ended", off); fin(); };
       a.addEventListener("ended", off);
       setTimeout(off, 8000);              // 念のための打ち切り
@@ -1420,7 +1490,8 @@
       return;
     }
     try{
-      var a = new Audio(src);
+      if(!cardEl) cardEl = new Audio();
+      var a = claim(cardEl);                   // 使い回す（iPad でふたが開いている入れもの）
       var fired = false;
       var fin = function(){
         if(fired) return;
@@ -1428,10 +1499,10 @@
         if(seq !== soundSeq) return;
         done();
       };
-      a.addEventListener("ended", fin);
-      a.addEventListener("error", fin);        // ファイルが無ければ そのまま次へ
+      a.onended = fin;
+      a.onerror = fin;                         // ファイルが無ければ そのまま次へ
       setTimeout(fin, 8000);                   // 念のための打ち切り
-      cardSnd = a;
+      a.src = src;
       var p = a.play();
       if(p && p.catch) p.catch(fin);
     }catch(e){ done(); }
@@ -1485,10 +1556,12 @@
       fellBack = true;
       speak(text, finish);
     };
-    clip = new Audio(src);
-    clip.addEventListener("error", fallback);
-    clip.addEventListener("ended", finish);   // 録音があったとき
-    var p = clip.play();
+    if(!voiceEl) voiceEl = new Audio();
+    var a = claim(voiceEl);                   // 使い回す（iPad でふたが開いている入れもの）
+    a.onerror = fallback;
+    a.onended = finish;                       // 録音があったとき
+    a.src = src;
+    var p = a.play();
     if(p && p.catch) p.catch(fallback);
   }
   function speak(text, done){
@@ -1517,8 +1590,12 @@
   function shutUp(){
     soundSeq++;                           // 待っている音を これ以上 鳴らさない
     try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
-    if(clip){ try{ clip.pause(); }catch(e){} clip = null; }
-    if(cardSnd){ try{ cardSnd.pause(); }catch(e){} cardSnd = null; }
+    /* 入れものは 使い回すので 捨てない。合図の受けとりだけ やめて 止める。 */
+    [voiceEl, cardEl].forEach(function(a){
+      if(!a) return;
+      a.onended = null; a.onerror = null;
+      try{ a.pause(); }catch(e){}
+    });
   }
 
   function confetti(){
