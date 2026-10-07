@@ -50,7 +50,7 @@ var SIGN_SETS = [
       { file:"横断歩道.jpg",     name:"横断歩道",   yomi:"おうだんほどう",       action:"手を あげて わたる" },
       { file:"横断歩道 (2).jpg", name:"通学路",     yomi:"つうがくろ",           action:"ならんで あるく" },
       { file:"歩行者専用.jpg",   name:"歩行者専用", yomi:"ほこうしゃせんよう",   action:"まえに すすむ" },
-      { file:"横断禁止.webp",    name:"横断禁止",   yomi:"おうだんきんし",       action:"わたらずに まつ" },
+      { file:"横断禁止.webp",    name:"横断禁止",   yomi:"おうだんきんし",       action:"わたれない" },
       { file:"通行止め.webp",    name:"通行止め",   yomi:"つうこうどめ",         action:"うしろに もどる" },
       { file:"立ち入り禁止.jpg", name:"立入禁止",   yomi:"たちいりきんし",       action:"はいらない！" },
       { file:"工事中.jpg",       name:"工事中",     yomi:"こうじちゅう",         action:"ゆっくり すすむ",
